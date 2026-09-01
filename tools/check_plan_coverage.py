@@ -1,32 +1,20 @@
 #!/usr/bin/env python3
-"""Check that the four documents carry what each of them claims.
+"""Check that the four rebuilt documents under docs/ still agree with each other.
 
-Every direction below exists because a claim in prose cannot be audited:
+A stated count that nothing recounts drifts silently, and a requirement or a step
+mentioned in prose is not the same thing as one carried by a lot. This script reads
+docs/cahier-des-charges.md, docs/architecture.md, docs/plan.md and docs/couverture.md
+from their tables -- never from prose -- and fails if any of the following breaks:
 
-1. Every blocking socle requirement of `docs/cahier-des-charges.md` is assigned
-   to a lot by `docs/plan.md`. An earlier revision dropped CAP-08 -- blocking,
-   and described upstream as "not optional" -- and nobody noticed until a review
-   read the two documents side by side.
-2. Every block named in `docs/architecture.md` is delivered by a lot. Before
-   this check existed, 39 of the blocks appeared in no lot at all, including
-   `judge/accept`, which produces the eleven ACC acceptance criteria.
-3. No requirement is scheduled before a block that carries it. Checking (1) and
-   (2) separately let four of these through -- VER-11 was due in lot 1 while
-   `judge/accept` arrived in lot 6 -- because each set was complete on its own.
-4. Every requirement has exactly one row in `docs/architecture.md` §9, which
-   claims "une ligne par exigence".
-5. The counts the documents state -- the cahier's "87 socle, 4 extensions, 64
-   bloquantes" line, and the per-family rows of `docs/couverture.md`, whose
-   statuses must sum to their total and whose total must equal the cahier's --
-   equal what the cahier's tables actually contain. The audit of 2026-09-01
-   recounted them by hand; a stated count that nothing recounts drifts silently.
+A. every L or O requirement (non-ACC) is assigned to exactly one lot in plan.md §6.
+B. every step of architecture.md §4 is delivered by exactly one lot.
+C. no requirement is scheduled in a lot earlier than a step architecture.md §5 says
+   carries it.
+D. every one of the 73 requirements has exactly one row in architecture.md §5.
+E. couverture.md §1: each family's statuses sum to its total, each total matches the
+   cahier's count for that family, the grand total matches, and every family has a row.
 
-All of them are read from tables, never from prose: citing a requirement in a
-rationale is not carrying it.
-
-Exit code is non-zero when any direction fails, so this is usable as a check.
-Run `--self-test` to verify the check itself still fails on each kind of
-drift: those mutations are the only evidence the check is not vacuous.
+Run --self-test to verify each of these still fails on a mutated copy of the documents.
 """
 
 from __future__ import annotations
@@ -39,44 +27,87 @@ from pathlib import Path
 
 REQ = re.compile(r"\b([A-Z]{2,3}-\d{2})\b")
 BLOCK = re.compile(r"\b((?:observe|infer|build|run|serve|judge|orchestrate)/[a-z]+)\b")
-# A requirement row: | REF | text | Priority |, optionally prefixed by the
-# extension marker `o`, whose priority is conditional and never gates delivery.
+
+# A requirement row of the cahier's eight families: | REF | text | source | mesure | standard | rang |,
+# optionally prefixed by the extension marker `o`. Restricted to a single line: a
+# malformed row must not swallow the next one.
 CDC_ROW = re.compile(
-    r"^\|\s*(o\s+)?([A-Z]{2,3}-\d{2})\s*\|(?:[^|]*)\|\s*(Bloquant|Bloquant si retenue|Élevée|Souhaitée)\s*\|",
+    r"^\|\s*(o\s+)?([A-Z]{2,3}-\d{2})\s*\|(?:[^|\n]*\|){4}\s*([^|\n]+?)\s*\|\s*$",
     re.M,
 )
-# Any requirement row, ACC criteria included (their third cell is a threshold).
-ANY_ROW = re.compile(r"^\|\s*(?:o\s+)?([A-Z]{2,3}-\d{2})\s*\|", re.M)
-CDC_COUNT = re.compile(
-    r"Décompte : (\d+) exigences de socle, (\d+) extensions.*?Dont (\d+) exigences de socle bloquantes"
-)
-# | 4. Capture (CAP) | ✅ | 🟡 | ❌ | Total | lot |
+# An ACC row has no rank: | ACC-NN | condition | source | seuil |.
+ACC_ROW = re.compile(r"^\|\s*(ACC-\d{2})\s*\|(?:[^|\n]*\|){2}\s*[^|\n]+\|\s*$", re.M)
+
+# A step cell of architecture.md §4: | `paquet/etape` | ...
+STEP_CELL = re.compile(r"^\|\s*`([a-z]+/[a-z]+)`\s*\|", re.M)
+# Any row of architecture.md §5 whose first cell is a requirement, ACC included.
+ARCH5_ROW = re.compile(r"^\|\s*(?:o\s+)?([A-Z]{2,3}-\d{2})\s*\|", re.M)
+
+# | 6. Capture (CAP) | done | partial | absent | total | lot |
 COV_ROW = re.compile(r"^\|\s*\d+\.\s*([^|]*?)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|", re.M)
 COV_TOTAL = re.compile(r"^\|\s*\*\*Total\*\*\s*\|[^|]*\|[^|]*\|[^|]*\|\s*\*\*(\d+)\*\*\s*\|", re.M)
 
 
-def blocking_requirements(cdc: str) -> set[str]:
-    """Blocking socle requirements. Extensions (`o`) do not gate acceptance."""
-    return {ref for marker, ref, prio in CDC_ROW.findall(cdc) if prio == "Bloquant" and not marker}
+def section(text: str, start: str, end: str) -> str:
+    i = text.index(start)
+    j = text.index(end, i)
+    return text[i:j]
+
+
+def requirement_ranks(cdc: str) -> dict[str, str]:
+    """Rank of every non-ACC requirement, taken as the first letter of the Rang cell."""
+    return {ref: rang.strip()[0] for _marker, ref, rang in CDC_ROW.findall(cdc)}
 
 
 def all_requirements(cdc: str) -> list[str]:
-    return ANY_ROW.findall(cdc)
+    refs = [ref for _marker, ref, _rang in CDC_ROW.findall(cdc)]
+    refs += ACC_ROW.findall(cdc)
+    return refs
 
 
-def architecture_blocks(arch: str) -> set[str]:
-    return set(BLOCK.findall(arch))
+def architecture_steps(arch: str) -> set[str]:
+    return set(STEP_CELL.findall(section(arch, "## 4. Les étapes", "## 5.")))
 
 
-def carriers(plan: str, pattern: re.Pattern[str]) -> dict[str, str]:
-    """Names assigned by a table row whose FIRST cell names a lot.
+def architecture_section5(arch: str) -> str:
+    return section(arch, "## 5.", "## 6.")
 
-    The first cell is the carrier; the names come from the rest of the row. A row
-    whose first cell is itself a list of names is NOT a carrier -- that shape let
-    a row with an empty lot column pass as covered, which is the failure this
-    check exists to catch. Verified by `--self-test`.
+
+def architecture_rows(arch: str) -> Counter[str]:
+    return Counter(ARCH5_ROW.findall(architecture_section5(arch)))
+
+
+def architecture_req_steps(arch: str) -> dict[str, set[str]]:
+    """Steps §5 says carry each requirement. Rows with fewer than 4 cells (the ACC
+    table has 3) have no step column and are skipped."""
+    mapping: dict[str, set[str]] = {}
+    for line in architecture_section5(arch).splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 4:
+            continue
+        m = re.match(r"(?:o\s+)?([A-Z]{2,3}-\d{2})", cells[0])
+        if not m:
+            continue
+        mapping[m.group(1)] = set(BLOCK.findall(cells[1]))
+    return mapping
+
+
+def lot_of(owner: str) -> int | None:
+    m = re.search(r"\blot (\d+)\b", owner.lower())
+    return int(m.group(1)) if m else None
+
+
+def carriers(plan: str, pattern: re.Pattern[str]) -> dict[str, list[str]]:
+    """Names assigned by every row of plan.md §6 whose first cell names a lot.
+
+    A row whose first cell is itself a list of names is NOT a carrier -- that shape let
+    a row with an empty lot column pass as covered, which this check exists to catch.
+    A name found in more than one carrier row is reported as such, not silently kept
+    once.
     """
-    found: dict[str, str] = {}
+    found: dict[str, list[str]] = {}
     for line in plan.splitlines():
         if not line.startswith("|"):
             continue
@@ -89,77 +120,65 @@ def carriers(plan: str, pattern: re.Pattern[str]) -> dict[str, str]:
         if not rest.strip():
             continue
         for name in set(pattern.findall(rest)):
-            found.setdefault(name, owner)
+            found.setdefault(name, []).append(owner)
     return found
 
 
-def lot_of(owner: str) -> int | None:
-    m = re.search(r"\blot (\d+)\b", owner.lower())
-    return int(m.group(1)) if m else None
+def unassigned_or_duplicated(names: set[str], owners: dict[str, list[str]]) -> list[str]:
+    out = []
+    for name in sorted(names):
+        n = len(owners.get(name, []))
+        if n == 0:
+            out.append(f"{name}: carried by no lot")
+        elif n > 1:
+            out.append(f"{name}: carried by {n} lots ({', '.join(owners[name])})")
+    return out
 
 
-def premature(arch: str, req_owner: dict[str, str], block_owner: dict[str, str]) -> list[str]:
-    """Requirements due before a block that architecture.md says carries them.
-
-    Reads the coverage rows of architecture.md §9, whose shape is
-    | REQ | blocks | rationale |, and compares lot numbers on both sides.
-    """
+def premature(req_owners: dict[str, list[str]], step_owners: dict[str, list[str]], req_steps5: dict[str, set[str]], steps4: set[str]) -> list[str]:
     out: list[str] = []
-    for line in arch.splitlines():
-        if not line.startswith("| "):
+    for req, owners in req_owners.items():
+        if len(owners) != 1:
             continue
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if len(cells) < 3:
-            continue
-        head = REQ.match(cells[0].removeprefix("o "))
-        if not head or head.group(1) not in req_owner:
-            continue
-        req = head.group(1)
-        req_lot = lot_of(req_owner[req])
+        req_lot = lot_of(owners[0])
         if req_lot is None:
             continue
-        for block in sorted(set(BLOCK.findall(cells[1]))):
-            block_lot = lot_of(block_owner.get(block, ""))
-            if block_lot is not None and block_lot > req_lot:
-                out.append(f"{req} is due in lot {req_lot} but {block} arrives in lot {block_lot}")
-    return sorted(set(out))
+        for step in sorted(req_steps5.get(req, set()) & steps4):
+            step_owner = step_owners.get(step, [])
+            if len(step_owner) != 1:
+                continue
+            step_lot = lot_of(step_owner[0])
+            if step_lot is not None and step_lot > req_lot:
+                out.append(f"{req} is due in lot {req_lot} but {step} arrives in lot {step_lot}")
+    return sorted(out)
 
 
-def not_one_row_in_architecture(cdc: str, arch: str) -> list[str]:
-    """architecture.md §9 claims one row per requirement. Count them."""
-    rows = Counter(all_requirements(arch))
-    return sorted(f"{ref}: {rows[ref]} row(s) in architecture.md" for ref in all_requirements(cdc) if rows[ref] != 1)
+def not_one_row_in_architecture(all_refs: list[str], rows: Counter[str]) -> list[str]:
+    return sorted(f"{ref}: {rows[ref]} row(s) in architecture.md §5" for ref in all_refs if rows[ref] != 1)
 
 
-def stated_counts_wrong(cdc: str, cov: str) -> list[str]:
-    """The counts the documents state versus the cahier's tables."""
+def family_of(label: str) -> str | None:
+    m = re.search(r"\(([A-Z]{2,3})\)", label)
+    if m:
+        return m.group(1)
+    tokens = re.findall(r"\b([A-Z]{2,3})\b", label)
+    return tokens[-1] if tokens else None
+
+
+def couverture_issues(reqs: list[str], cov: str) -> list[str]:
     out: list[str] = []
-    reqs = all_requirements(cdc)
-    rows = CDC_ROW.findall(cdc)
-    socle = len(reqs) - sum(1 for marker, _, _ in rows if marker)
-    extensions = sum(1 for marker, _, _ in rows if marker)
-    blocking = len(blocking_requirements(cdc))
-
-    m = CDC_COUNT.search(cdc)
-    if not m:
-        out.append("cahier §3: the 'Décompte' line was not found")
-    else:
-        for label, stated, actual in (("socle", m.group(1), socle), ("extensions", m.group(2), extensions), ("bloquantes", m.group(3), blocking)):
-            if int(stated) != actual:
-                out.append(f"cahier §3 states {stated} {label}, the tables hold {actual}")
-
     per_family = Counter(ref.split("-")[0] for ref in reqs)
     seen: set[str] = set()
     for label, done, partial, absent, total in COV_ROW.findall(cov):
-        fam = re.search(r"\b([A-Z]{2,3})\b", label)
-        if not fam:
+        fam = family_of(label)
+        if fam is None:
             out.append(f"couverture §1: no family code in row '{label}'")
             continue
-        seen.add(fam.group(1))
+        seen.add(fam)
         if int(done) + int(partial) + int(absent) != int(total):
-            out.append(f"couverture §1: {fam.group(1)} statuses sum to {int(done) + int(partial) + int(absent)}, not {total}")
-        if int(total) != per_family[fam.group(1)]:
-            out.append(f"couverture §1 states {total} for {fam.group(1)}, the cahier holds {per_family[fam.group(1)]}")
+            out.append(f"couverture §1: {fam} statuses sum to {int(done) + int(partial) + int(absent)}, not {total}")
+        if int(total) != per_family.get(fam, 0):
+            out.append(f"couverture §1 states {total} for {fam}, the cahier holds {per_family.get(fam, 0)}")
     for fam in sorted(per_family.keys() - seen):
         out.append(f"couverture §1 has no row for {fam}")
     m = COV_TOTAL.search(cov)
@@ -171,96 +190,94 @@ def stated_counts_wrong(cdc: str, cov: str) -> list[str]:
 
 
 def audit(cdc: str, arch: str, plan: str, cov: str, quiet: bool = False) -> int:
-    blocking = blocking_requirements(cdc)
-    blocks = architecture_blocks(arch)
-    req_owner = carriers(plan, REQ)
-    block_owner = carriers(plan, BLOCK)
+    reqs = all_requirements(cdc)
+    ranks = requirement_ranks(cdc)
+    lo_reqs = {ref for ref, rank in ranks.items() if rank in ("L", "O")}
 
-    orphan_reqs = sorted(blocking - req_owner.keys())
-    orphan_blocks = sorted(blocks - block_owner.keys())
-    too_early = premature(arch, req_owner, block_owner)
-    unmapped = not_one_row_in_architecture(cdc, arch)
-    miscounted = stated_counts_wrong(cdc, cov)
+    steps4 = architecture_steps(arch)
+    arch_rows = architecture_rows(arch)
+    req_steps5 = architecture_req_steps(arch)
+
+    req_owners = carriers(plan, REQ)
+    step_owners = carriers(plan, BLOCK)
+
+    unassigned_reqs = unassigned_or_duplicated(lo_reqs, req_owners)
+    undelivered_steps = unassigned_or_duplicated(steps4, step_owners)
+    too_early = premature(req_owners, step_owners, req_steps5, steps4)
+    unmapped = not_one_row_in_architecture(reqs, arch_rows)
+    miscounted = couverture_issues(reqs, cov)
 
     if not quiet:
-        print(f"requirements in the cahier    : {len(all_requirements(cdc))}")
-        print(f"  with one row in architecture: {len(all_requirements(cdc)) - len(unmapped)}")
-        print(f"blocking socle requirements   : {len(blocking)}")
-        print(f"  assigned to a lot           : {len(blocking & req_owner.keys())}")
-        print(f"blocks in architecture.md     : {len(blocks)}")
-        print(f"  delivered by a lot          : {len(blocks & block_owner.keys())}")
-
-    for label, orphans, source in (
-        ("blocking requirement", orphan_reqs, plan),
-        ("architecture block", orphan_blocks, plan),
-    ):
-        if not orphans or quiet:
-            continue
-        print(f"\n{len(orphans)} {label}(s) with no carrier:")
-        for name in orphans:
-            note = " (mentioned in prose only -- a mention is not a plan)" if name in source else ""
-            print(f"  {name}{note}")
+        print(f"requirements in the cahier    : {len(reqs)}")
+        print(f"  with one row in §5          : {len(reqs) - len(unmapped)}")
+        print(f"L or O requirements            : {len(lo_reqs)}")
+        print(f"  assigned to exactly one lot : {len(lo_reqs) - len(unassigned_reqs)}")
+        print(f"steps in architecture.md §4    : {len(steps4)}")
+        print(f"  delivered by exactly one lot: {len(steps4) - len(undelivered_steps)}")
 
     for title, lines in (
-        ("requirement(s) scheduled before a block that carries them", too_early),
-        ("requirement(s) without exactly one row in architecture.md §9", unmapped),
-        ("stated count(s) that the tables contradict", miscounted),
+        ("L/O requirement(s) not carried by exactly one lot", unassigned_reqs),
+        ("step(s) of architecture.md §4 not delivered by exactly one lot", undelivered_steps),
+        ("requirement(s) scheduled before a step that carries them", too_early),
+        ("requirement(s) without exactly one row in architecture.md §5", unmapped),
+        ("stated count(s) that couverture.md §1 contradicts", miscounted),
     ):
         if lines and not quiet:
             print(f"\n{len(lines)} {title}:")
             for line in lines:
                 print(f"  {line}")
 
-    if orphan_reqs or orphan_blocks or too_early or unmapped or miscounted:
+    if unassigned_reqs or undelivered_steps or too_early or unmapped or miscounted:
         return 1
     if not quiet:
-        print("\nEvery blocking requirement and every block has a carrier, no requirement is")
-        print("due before a block that carries it, architecture.md maps each requirement once,")
-        print("and every stated count matches the tables.")
+        print("\nEvery L or O requirement and every step has exactly one carrier, no requirement is")
+        print("due before a step that carries it, architecture.md §5 maps each requirement once,")
+        print("and couverture.md §1 matches the cahier's tables.")
     return 0
 
 
-def test_drops_assignment(cdc: str, arch: str, plan: str, cov: str) -> None:
+def test_checks(cdc: str, arch: str, plan: str, cov: str) -> None:
     """Each kind of drift must be caught."""
-    first_row = next(l for l in plan.splitlines() if l.startswith("| **lot 1"))
-    cells = first_row.split("|")
-    mutated = plan.replace(first_row, "|  |" + "|".join(cells[2:]))
+    lot1_row = next(l for l in plan.splitlines() if l.startswith("| **lot 1"))
+    cells = lot1_row.split("|")
+    mutated = plan.replace(lot1_row, "|  |" + "|".join(cells[2:]), 1)
     assert mutated != plan, "mutation not applied -- the table shape changed"
-    assert audit(cdc, arch, mutated, cov, quiet=True) == 1, "a dropped lot cell went unnoticed"
+    assert audit(cdc, arch, mutated, cov, quiet=True) == 1, "a blanked lot 1 cell went unnoticed"
 
-    dropped_block = plan.replace("`judge/accept`", "")
-    assert dropped_block != plan, "judge/accept not found -- the table shape changed"
-    assert audit(cdc, arch, dropped_block, cov, quiet=True) == 1, "a dropped block went unnoticed"
+    lot2_row = next(l for l in plan.splitlines() if l.startswith("| **lot 2"))
+    dropped_line = lot2_row.replace(" `judge/report`", "", 1)
+    assert dropped_line != lot2_row, "judge/report not found in the lot 2 row -- the table shape changed"
+    dropped_plan = plan.replace(lot2_row, dropped_line, 1)
+    assert audit(cdc, arch, dropped_plan, cov, quiet=True) == 1, "a dropped step went unnoticed"
 
-    # move judge/diff from lot 1 to lot 6 in the assignment table: VER-01 is then
-    # scheduled before a block that architecture.md says carries it
-    rows = []
-    moved = False
-    for line in plan.splitlines(keepends=True):
-        if line.startswith("| **lot 1") and "`judge/diff`" in line:
-            line, moved = line.replace(" `judge/diff`", "", 1), True
-        elif line.startswith("| **lot 6"):
-            line = line.replace("`judge/accept`", "`judge/accept` `judge/diff`", 1)
-        rows.append(line)
-    late_block = "".join(rows)
-    assert moved, "judge/diff not found in the lot 1 row -- the table shape changed"
-    assert audit(cdc, arch, late_block, cov, quiet=True) == 1, "a premature requirement went unnoticed"
+    lot1_row2 = next(l for l in plan.splitlines() if l.startswith("| **lot 1"))
+    lot1_without_diff = lot1_row2.replace(" `judge/diff`", "", 1)
+    assert lot1_without_diff != lot1_row2, "judge/diff not found in the lot 1 row -- the table shape changed"
+    lot5_row = next(l for l in plan.splitlines() if l.startswith("| **lot 5"))
+    lot5_with_diff = lot5_row.replace("`judge/agent`", "`judge/agent` `judge/diff`", 1)
+    assert lot5_with_diff != lot5_row, "judge/agent not found in the lot 5 row -- the table shape changed"
+    late_step = plan.replace(lot1_row2, lot1_without_diff, 1).replace(lot5_row, lot5_with_diff, 1)
+    assert audit(cdc, arch, late_step, cov, quiet=True) == 1, "a premature requirement went unnoticed"
 
     cap05_row = next(l for l in arch.splitlines() if l.startswith("| CAP-05 "))
     no_row = arch.replace(cap05_row + "\n", "", 1)
     assert no_row != arch, "CAP-05 row not found -- the table shape changed"
-    assert audit(cdc, no_row, plan, cov, quiet=True) == 1, "a requirement without a §9 row went unnoticed"
+    assert audit(cdc, no_row, plan, cov, quiet=True) == 1, "a requirement without a §5 row went unnoticed"
 
-    m = CDC_COUNT.search(cdc)
-    assert m, "the 'Décompte' line was not found"
-    miscount = cdc.replace(m.group(0), m.group(0).replace(m.group(3), str(int(m.group(3)) - 1), 1), 1)
-    assert miscount != cdc, "the count mutation was not applied"
-    assert audit(miscount, arch, plan, cov, quiet=True) == 1, "a wrong stated count went unnoticed"
+    cap_line = next(l for l in cov.splitlines() if "(CAP)" in l)
+    m = COV_ROW.search(cap_line)
+    assert m, "the couverture CAP row was not found -- the table shape changed"
+    start, end = m.span(4)
+    bad_cap_line = cap_line[:start] + str(int(m.group(4)) - 1) + cap_line[end:]
+    assert bad_cap_line != cap_line, "the couverture mutation was not applied"
+    bad_sum_cov = cov.replace(cap_line, bad_cap_line, 1)
+    assert audit(cdc, arch, plan, bad_sum_cov, quiet=True) == 1, "a wrong couverture sum went unnoticed"
 
-    cap_row = next(l for l in cov.splitlines() if "(CAP)" in l)
-    miscov = cov.replace(cap_row, cap_row.replace("| 11 |", "| 10 |", 1), 1)
-    assert miscov != cov, "the couverture mutation was not applied -- the table shape changed"
-    assert audit(cdc, arch, plan, miscov, quiet=True) == 1, "a wrong couverture total went unnoticed"
+    mt = COV_TOTAL.search(cov)
+    assert mt, "the couverture Total row was not found"
+    bad_total_cov = cov[: mt.start(1)] + "72" + cov[mt.end(1) :]
+    assert bad_total_cov != cov, "the Total mutation was not applied"
+    assert audit(cdc, arch, plan, bad_total_cov, quiet=True) == 1, "a wrong couverture total went unnoticed"
 
     assert audit(cdc, arch, plan, cov, quiet=True) == 0, "the unmutated documents must pass"
     print("self-test: all six mutations are caught, the unmutated documents pass")
@@ -280,7 +297,7 @@ def main() -> int:
     cov = (docs / "couverture.md").read_text(encoding="utf-8")
 
     if args.self_test:
-        test_drops_assignment(cdc, arch, plan, cov)
+        test_checks(cdc, arch, plan, cov)
         return 0
     return audit(cdc, arch, plan, cov, quiet=args.quiet)
 

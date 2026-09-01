@@ -1,5 +1,5 @@
-# Minimal on purpose : ce dépôt n'a pas encore de code produit, et docs/architecture.md §11
-# écarte explicitement tout cadriciel. Ce fichier ne sert qu'à situer la racine et pytest.
+# Minimal on purpose : ce dépôt n'a pas encore de code produit. Ce fichier situe la racine,
+# pytest, et les dépendances de la spécification exécutable — rien d'autre.
 
 [project]
 name = "replikit"
@@ -9,8 +9,19 @@ requires-python = ">=3.12"
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+spec = [
+  "pytest>=8",
+  "pyyaml>=6",
+  "jsonschema>=4.26",
+  "openapi-spec-validator>=0.9",
+  "httpx>=0.28",
+  "psycopg[binary]>=3.2",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+  "cible: exige une cible vivante (REPLIKIT_TARGET, REPLIKIT_TARGET_URL) ; échoue sans elle, ne se saute jamais",
+  "environnement: exige un environnement du clone (REPLIKIT_ENV_URL, REPLIKIT_ENV_DSN) ; échoue sans lui, ne se saute jamais",
+]
