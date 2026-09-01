@@ -9,13 +9,16 @@ Two directions, because a claim in prose cannot be audited:
    read the two documents side by side.
 2. Every block named in `docs/architecture.md` is delivered by a lot. Before
    this check existed, 39 of the 50 blocks appeared in no lot at all, including
-   `judge/accept`, which alone produces the twelve ACC acceptance criteria.
+   `judge/accept`, which produces the eleven ACC acceptance criteria.
+3. No requirement is scheduled before a block that carries it. Checking (1) and
+   (2) separately let four of these through -- VER-11 was due in lot 1 while
+   `judge/accept` arrived in lot 6 -- because each set was complete on its own.
 
-Both are read from the assignment table, never from prose: citing a requirement
-in a rationale is not carrying it.
+All three are read from the assignment tables, never from prose: citing a
+requirement in a rationale is not carrying it.
 
-Exit code is non-zero when either direction has an orphan, so this is usable as
-a check. Run `--self-test` to verify the check itself still fails on a dropped
+Exit code is non-zero when any direction fails, so this is usable as a check.
+Run `--self-test` to verify the check itself still fails on a dropped
 assignment: that mutation is the only evidence the check is not vacuous.
 """
 
@@ -70,6 +73,38 @@ def carriers(plan: str, pattern: re.Pattern[str]) -> dict[str, str]:
     return found
 
 
+def lot_of(owner: str) -> int | None:
+    m = re.search(r"lot (\d+)", owner.lower())
+    return int(m.group(1)) if m else None
+
+
+def premature(arch: str, req_owner: dict[str, str], block_owner: dict[str, str]) -> list[str]:
+    """Requirements due before a block that architecture.md says carries them.
+
+    Reads the coverage rows of architecture.md §9, whose shape is
+    | REQ | blocks | rationale |, and compares lot numbers on both sides.
+    """
+    out: list[str] = []
+    for line in arch.splitlines():
+        if not line.startswith("| "):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 3:
+            continue
+        head = REQ.match(cells[0].removeprefix("o "))
+        if not head or head.group(1) not in req_owner:
+            continue
+        req = head.group(1)
+        req_lot = lot_of(req_owner[req])
+        if req_lot is None:
+            continue
+        for block in sorted(set(BLOCK.findall(cells[1]))):
+            block_lot = lot_of(block_owner.get(block, ""))
+            if block_lot is not None and block_lot > req_lot:
+                out.append(f"{req} is due in lot {req_lot} but {block} arrives in lot {block_lot}")
+    return sorted(set(out))
+
+
 def audit(cdc: str, arch: str, plan: str, quiet: bool = False) -> int:
     blocking = blocking_requirements(cdc)
     blocks = architecture_blocks(arch)
@@ -78,6 +113,7 @@ def audit(cdc: str, arch: str, plan: str, quiet: bool = False) -> int:
 
     orphan_reqs = sorted(blocking - req_owner.keys())
     orphan_blocks = sorted(blocks - block_owner.keys())
+    too_early = premature(arch, req_owner, block_owner)
 
     if not quiet:
         print(f"blocking socle requirements : {len(blocking)}")
@@ -96,10 +132,16 @@ def audit(cdc: str, arch: str, plan: str, quiet: bool = False) -> int:
             note = " (mentioned in prose only -- a mention is not a plan)" if name in source else ""
             print(f"  {name}{note}")
 
-    if orphan_reqs or orphan_blocks:
+    if too_early and not quiet:
+        print(f"\n{len(too_early)} requirement(s) scheduled before a block that carries them:")
+        for line in too_early:
+            print(f"  {line}")
+
+    if orphan_reqs or orphan_blocks or too_early:
         return 1
     if not quiet:
-        print("\nEvery blocking requirement and every block has a carrier.")
+        print("\nEvery blocking requirement and every block has a carrier,")
+        print("and no requirement is due before a block that carries it.")
     return 0
 
 
@@ -115,8 +157,22 @@ def test_drops_assignment(cdc: str, arch: str, plan: str) -> None:
     assert dropped_block != plan, "judge/accept not found -- the table shape changed"
     assert audit(cdc, arch, dropped_block, quiet=True) == 1, "a dropped block went unnoticed"
 
+    # move judge/diff from lot 1 to lot 6 in the assignment table: VER-01 is then
+    # scheduled before a block that architecture.md says carries it
+    rows = []
+    moved = False
+    for line in plan.splitlines(keepends=True):
+        if line.startswith("| **lot 1") and "`judge/diff`" in line:
+            line, moved = line.replace(" `judge/diff`", "", 1), True
+        elif line.startswith("| **lot 6"):
+            line = line.replace("`judge/accept`", "`judge/accept` `judge/diff`", 1)
+        rows.append(line)
+    late_block = "".join(rows)
+    assert moved, "judge/diff not found in the lot 1 row -- the table shape changed"
+    assert audit(cdc, arch, late_block, quiet=True) == 1, "a premature requirement went unnoticed"
+
     assert audit(cdc, arch, plan, quiet=True) == 0, "the unmutated plan must pass"
-    print("self-test: both mutations are caught, the unmutated plan passes")
+    print("self-test: all three mutations are caught, the unmutated plan passes")
 
 
 def main() -> int:

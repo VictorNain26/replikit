@@ -22,14 +22,16 @@ l'oracle, et le nombre d'itérations de réparation avant convergence.
 | 7. Exécution (RUN) | 0 | 0 | 14 | 14 | lot 5 |
 | 8. Tool use (API) | 0 | 0 | 10 | 10 | lot 5 |
 | 9. Vérification (VER) | 0 | 0 | 11 | 11 | lot 1 |
-| 10. Orchestration LLM | 0 | 0 | 6 | 6 | lot 1 |
+| 10. Orchestration LLM | 0 | 0 | 6 | 6 | lot 4 |
 | 11. Non fonctionnel (NF) | 0 | 0 | 8 | 8 | lot 2 |
 | 12. Acceptation (ACC) | 0 | 0 | 11 | 11 | lot 6 |
 | **Total** | **0** | **0** | **91** | **91** | |
 
 Ce tableau se remplira lot par lot. Une exigence n'y passera pas à ✅ sur une lecture de
 code : il faudra une exécution, et le critère de sortie de son lot. `docs/plan.md` §5 dit
-quel lot porte quoi ; cette colonne ne fait que le refléter et ne l'établit pas.
+quel lot porte quoi ; cette colonne ne fait que le refléter et ne l'établit pas. Les onze
+`ACC` n'apparaissent pas dans le tableau §5 du plan, qui n'ordonnance que des exigences : ils
+sont produits par `judge/accept`, bloc livré au lot 6.
 
 ## 2. Ce que ce document ne contient pas
 

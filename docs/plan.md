@@ -16,7 +16,9 @@ automatisée, que deux systèmes se comportent identiquement pour une même séq
 d'entrées.
 
 `VER-01` — rejouer une trace sur la cible et sur le clone, puis produire un différentiel —
-est l'exigence dont onze critères d'acceptation dépendent, et l'état de l'art publié
+est l'exigence dont sept des onze critères d'acceptation dépendent — `ACC-01`, `ACC-02`,
+`ACC-03`, `ACC-04`, `ACC-08`, `ACC-09`, `ACC-11` ; `ACC-05`, `ACC-06`, `ACC-07` et `ACC-10`
+n'en dépendent pas. Et l'état de l'art publié
 revendique des répliques haute fidélité sans décrire aucun protocole de validation. Ce n'est
 pas une lecture de notre part : VeriEnv, vérifié dans `docs/architecture.md` §13, clone des
 sites réels en environnements « programmatically verifiable » — vérifiables sur
@@ -127,8 +129,11 @@ pas des engagements. Ce dépôt part vide : **rien n'est fait.**
 Un seul écran — la connexion — parcouru de bout en bout, et **le clone est écrit par
 l'agent**, pas à la main.
 
-*Blocs livrés* : `observe/drive`, `observe/store`, `infer/surface`, `build/scaffold`,
-`orchestrate/loop`, `judge/replay`, `judge/diff`, `judge/mutate`.
+*Blocs livrés* : `observe/drive`, `observe/store`, `infer/surface`, `infer/entities`,
+`build/scaffold`, `orchestrate/loop`, `judge/replay`, `judge/diff`, `judge/mutate`.
+
+`infer/entities` est ici et non plus tard : `GEN-01` demande un schéma SQL, et un schéma SQL
+ne se dérive pas d'un OpenAPI sans passer par les entités.
 
 *Exigences* : `CAP-01`, `CAP-02`, `INF-01`, `GEN-01`, `GEN-02`, `VER-01`, `VER-11`.
 
@@ -143,6 +148,8 @@ entre le témoin et le clone agentique est l'apport mesuré de l'agent.
 *La chaîne outillée, et son seul maillon nu* : HAR → `mitmproxy2swagger` → OpenAPI →
 `datamodel-code-generator` (`--output-model-type pydantic_v2.BaseModel`) → **schéma SQL :
 aucun générateur, l'agent écrit** → Alembic. Ce maillon est inscrit au §11 de l'architecture.
+
+*Commande* : `make lot1` — elle sort en erreur tant que le critère n'est pas tenu.
 
 *Critère de sortie* : **trois chiffres**, publiés ensemble ou pas du tout.
 
@@ -160,7 +167,7 @@ Durcir ce que le lot 1 a produit à la va-vite, en le dimensionnant sur des éca
 
 *Blocs livrés* : `observe/redact`, `judge/policy`, `judge/screen`.
 
-*Exigences* : `CAP-03`, `CAP-07`, `VER-02`, `VER-06`, `VER-07`, `VER-10`, `GEN-11`, `NF-06`.
+*Exigences* : `CAP-03`, `CAP-07`, `VER-02`, `VER-06`, `VER-07`, `VER-10`, `NF-06`.
 
 - `observe/redact` — purger en **liant**, pas en supprimant : un secret remplacé par une
   constante casse la trace comme référence de comparaison. Deux pièges à éviter par
@@ -171,6 +178,8 @@ Durcir ce que le lot 1 a produit à la va-vite, en le dimensionnant sur des éca
   vers les paramètres DeepDiff. Une politique que rien ne parse est un document, pas une
   politique. Le test qui l'établit : modifier une entrée du fichier doit changer le verdict.
 - `judge/screen` — comparaison d'écran par instantané ARIA, gabarit produit depuis la cible.
+
+*Commande* : `make lot2` — elle sort en erreur tant que le critère n'est pas tenu.
 
 *Critère de sortie* : le taux de détection vaut **100 %** ; la campagne tourne en CI cible
 éteinte ; aucune trace ne contient de secret, vérifié par un test ; la politique est lue par
@@ -193,6 +202,8 @@ qu'un runtime construit pour une seule cible est un runtime pour une seule cible
 le schéma depuis la source, et une cible propriétaire, dont on ne dérive rien, qui donne à
 l'exigence son sens. Elle alimente `infer`, jamais `judge` (D6).
 
+*Commande* : `make lot3` — elle sort en erreur tant que le critère n'est pas tenu.
+
 *Critère de sortie* : la même chaîne, **sans modification propre à la cible sous les sept
 paquets**, produit une liste d'écarts et un taux de détection sur une cible sans code source,
 sans reset et sous budget de requêtes ; et **le nombre de lignes ajoutées sous
@@ -203,26 +214,32 @@ faire passer la cible 2 est un aveu que le bloc connaissait la cible 1.
 
 ### Lot 4 — L'inférence et la boucle industrialisées (≈6 j)
 
-*Blocs livrés* : `infer/entities`, `infer/behavior`, `infer/merge`, `infer/rank`,
-`infer/deps`, `build/implement`, `build/preserve`, `build/seed`, `orchestrate/schema`,
+*Blocs livrés* : `infer/behavior`, `infer/merge`, `infer/rank`, `infer/deps`,
+`build/implement`, `build/preserve`, `build/seed`, `run/determinism`, `orchestrate/schema`,
 `orchestrate/trace`, `orchestrate/budget`, `orchestrate/parallel`, `orchestrate/evalset`.
 
+`run/determinism` est ici parce que `NF-05` l'exige, et que `NF-05` est ce qui rend les deux
+chiffres de ce lot comparables d'une itération à l'autre.
+
 *Exigences* : `INF-05`, `INF-06`, `INF-07`, `INF-08`, `GEN-03`, `GEN-04`, `GEN-05`, `GEN-06`,
-`GEN-07`, `GEN-08`, `LLM-01`, `LLM-02`, `LLM-03`, `LLM-04`, `LLM-05`, `LLM-06`, `NF-05`.
+`GEN-07`, `GEN-08`, `GEN-11`, `LLM-01`, `LLM-02`, `LLM-03`, `LLM-04`, `LLM-05`, `LLM-06`,
+`NF-05`.
 
 `orchestrate/loop` existe depuis le lot 1 sous sa forme minimale ; ce lot lui ajoute ce que
 `LLM-02` à `LLM-06` exigent — schémas aux frontières, journalisation, budget, parallélisme,
 jeu d'évaluation — et rien de plus. Le pipeline reste étagé : pas de cadriciel d'agents
 (`docs/architecture.md` §12).
 
+*Commande* : `make lot4` — elle sort en erreur tant que le critère n'est pas tenu.
+
 *Critère de sortie* : les trois chiffres du lot 1, **sur les deux cibles**, avec le nombre
 d'itérations en baisse ou expliqué.
 
 ### Lot 5 — Le runtime et la surface (≈8 j)
 
-*Blocs livrés* : `run/sandbox`, `run/branch`, `run/determinism`, `run/admin`,
-`run/sideeffects`, `run/journal`, `run/fleet`, `run/faults`, `serve/parity`, `serve/mcp`,
-`serve/errors`, `serve/client`, `serve/contract`.
+*Blocs livrés* : `run/sandbox`, `run/branch`, `run/admin`, `run/sideeffects`, `run/journal`,
+`run/fleet`, `run/faults`, `serve/parity`, `serve/mcp`, `serve/errors`, `serve/client`,
+`serve/contract`.
 
 *Exigences* : `RUN-01` à `RUN-08`, `RUN-10`, `RUN-13`, `GEN-09`, `API-01` à `API-07`,
 `API-09`, `API-10`, `NF-02`, `NF-03`, `NF-04`, `NF-07`, `NF-08`.
@@ -238,6 +255,8 @@ lecture de code, ce qui ne démontre rien : leur critère de sortie exige une ex
 coût marginal vaut alors 100 % contre un plafond de 5 %, quel que soit le soin apporté au
 reste. Le partage de blocs de `run/branch` est ce qui la rend atteignable, sous la réserve
 du §10.5 de l'architecture.
+
+*Commande* : `make lot5` — elle sort en erreur tant que le critère n'est pas tenu.
 
 *Critère de sortie* : un environnement démarre et sert son périmètre **réseau sortant
 coupé** ; 100 environnements simultanés mesurés ; coût de stockage marginal mesuré sous 5 % ;
@@ -258,6 +277,14 @@ Concurrence et temps réel (modèle séquentiel + Porcupine/Elle), exploration a
 couverture, indiscernabilité mesurée (D8), la **troisième cible**, et `judge/accept` — le
 bloc qui produit les onze critères `ACC` et sans lequel aucun clone n'est livrable.
 
+*Commande* : `make lot6` — elle sort en erreur tant que le critère n'est pas tenu.
+
+*Critère de sortie* : `judge/accept` produit les **onze** critères `ACC` automatiquement et
+les joint à la livraison ; `NF-01` est chronométré sur les **trois** cibles ; et le rapport
+dit lesquels des onze sont tenus et lesquels ne le sont pas. Un lot 6 réussi n'est pas un lot
+où tout passe : c'est un lot où chaque critère porte un verdict produit par une commande.
+`ACC-10` y figurera en échec tant que personne ne tient le rôle qu'il exige (§7).
+
 *Conséquence à écrire plutôt qu'à découvrir* : Mattermost est une cible collaborative, donc
 `CAP-11`, `GEN-10`, `RUN-11` et `ACC-09` sont bloquantes pour elle. Tant que le temps réel et
 le multi-acteur sont ici, **aucun clone produit avant n'est livrable au sens du §12**. C'est
@@ -273,14 +300,14 @@ Une affectation « lot 6 » n'est pas un renvoi aux calendes : c'est un engageme
 déclarer un clone livrable avant, puisque le §12 du cahier conditionne les onze critères
 `ACC` à ces exigences-là.
 
-| Lot | Blocs livrés | Exigences bloquantes portées |
-|---|---|---|
-| **lot 1 — vertical agentique** | `observe/drive` `observe/store` `infer/surface` `build/scaffold` `orchestrate/loop` `judge/replay` `judge/diff` `judge/mutate` | `CAP-01`, `CAP-02`, `INF-01`, `GEN-01`, `GEN-02`, `VER-01`, `VER-11` |
-| **lot 2 — oracle opposable** | `observe/redact` `judge/policy` `judge/screen` | `CAP-03`, `VER-02`, `VER-06`, `VER-07`, `VER-10`, `GEN-11`, `NF-06` |
-| **lot 3 — deuxième cible** | `observe/budget` `observe/ingest` `infer/provenance` | `CAP-05`, `CAP-08`, `CAP-09`, `INF-02`, `INF-03`, `INF-04` |
-| **lot 4 — inférence et boucle** | `infer/entities` `infer/behavior` `infer/merge` `infer/rank` `infer/deps` `build/implement` `build/preserve` `build/seed` `orchestrate/schema` `orchestrate/trace` `orchestrate/budget` `orchestrate/parallel` `orchestrate/evalset` | `INF-05`, `GEN-03`, `GEN-04`, `GEN-05`, `GEN-06`, `GEN-07`, `GEN-08`, `LLM-01`, `LLM-02`, `LLM-03`, `NF-05` |
-| **lot 5 — runtime et surface** | `run/sandbox` `run/branch` `run/determinism` `run/admin` `run/sideeffects` `run/journal` `run/fleet` `run/faults` `serve/parity` `serve/mcp` `serve/errors` `serve/client` `serve/contract` | `RUN-01`, `RUN-02`, `RUN-03`, `RUN-04`, `RUN-05`, `RUN-06`, `RUN-10`, `RUN-13`, `GEN-09`, `API-01`, `API-02`, `API-03`, `API-04`, `API-05`, `API-06`, `API-09`, `NF-02`, `NF-03`, `NF-04`, `NF-07` |
-| **lot 6 — élargissement et acceptation** | `observe/explore` `observe/probe` `build/realtime` `build/migrate` `judge/adversary` `judge/coverage` `judge/distinguish` `judge/drift` `judge/edge` `judge/accept` | `CAP-04`, `CAP-06`, `CAP-10`, `CAP-11`, `GEN-10`, `GEN-12`, `RUN-11`, `VER-03`, `VER-04`, `VER-05`, `VER-08`, `VER-09`, `NF-01` |
+| Lot | Commande | Blocs livrés | Exigences bloquantes portées |
+|---|---|---|---|
+| **lot 1 — vertical agentique** | `make lot1` | `observe/drive` `observe/store` `infer/surface` `infer/entities` `build/scaffold` `orchestrate/loop` `judge/replay` `judge/diff` `judge/mutate` | `CAP-01`, `CAP-02`, `INF-01`, `GEN-01`, `GEN-02`, `VER-01`, `VER-11` |
+| **lot 2 — oracle opposable** | `make lot2` | `observe/redact` `judge/policy` `judge/screen` | `CAP-03`, `VER-02`, `VER-06`, `VER-07`, `VER-10`, `NF-06` |
+| **lot 3 — deuxième cible** | `make lot3` | `observe/budget` `observe/ingest` `infer/provenance` | `CAP-05`, `CAP-08`, `CAP-09`, `INF-02`, `INF-03`, `INF-04` |
+| **lot 4 — inférence et boucle** | `make lot4` | `infer/behavior` `infer/merge` `infer/rank` `infer/deps` `build/implement` `build/preserve` `build/seed` `run/determinism` `orchestrate/schema` `orchestrate/trace` `orchestrate/budget` `orchestrate/parallel` `orchestrate/evalset` | `INF-05`, `GEN-03`, `GEN-04`, `GEN-05`, `GEN-06`, `GEN-07`, `GEN-08`, `GEN-11`, `LLM-01`, `LLM-02`, `LLM-03`, `NF-05` |
+| **lot 5 — runtime et surface** | `make lot5` | `run/sandbox` `run/branch` `run/admin` `run/sideeffects` `run/journal` `run/fleet` `run/faults` `serve/parity` `serve/mcp` `serve/errors` `serve/client` `serve/contract` | `RUN-01`, `RUN-02`, `RUN-03`, `RUN-04`, `RUN-05`, `RUN-06`, `RUN-10`, `RUN-13`, `GEN-09`, `API-01`, `API-02`, `API-03`, `API-04`, `API-05`, `API-06`, `API-09`, `NF-02`, `NF-03`, `NF-04`, `NF-07` |
+| **lot 6 — élargissement et acceptation** | `make lot6` | `observe/explore` `observe/probe` `build/realtime` `build/migrate` `judge/adversary` `judge/coverage` `judge/distinguish` `judge/drift` `judge/edge` `judge/accept` | `CAP-04`, `CAP-06`, `CAP-10`, `CAP-11`, `GEN-10`, `GEN-12`, `RUN-11`, `VER-03`, `VER-04`, `VER-05`, `VER-08`, `VER-09`, `NF-01` |
 
 **Ce que ce tableau ne porte pas, et le dit.** Les exigences de priorité *Élevée* — `CAP-07`,
 `INF-06` à `INF-08`, `RUN-07`, `RUN-08`, `API-07`, `API-10`, `LLM-04` à `LLM-06`, `NF-08` —

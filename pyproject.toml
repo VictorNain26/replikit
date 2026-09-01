@@ -1,0 +1,16 @@
+# Minimal on purpose : ce dépôt n'a pas encore de code produit, et docs/architecture.md §11
+# écarte explicitement tout cadriciel. Ce fichier ne sert qu'à situer la racine et pytest.
+
+[project]
+name = "replikit"
+version = "0.0.0"
+description = "Clone third-party software from the outside and prove the fidelity."
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

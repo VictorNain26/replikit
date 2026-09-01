@@ -137,7 +137,7 @@ Ces exigences portent sur l’exécution des clones en instances isolées, réin
 | RUN-11 | Faire agir dans l’environnement, de façon reproductible, au moins un second utilisateur dont les actions ont les mêmes effets que celles d’un humain. Prérequis de toute tâche collaborative. | Bloquant |
 | o RUN-12 | Confinement du bac à sable : un agent qui tente de sortir de l’environnement (exécution de code, accès au système de fichiers hôte, appel réseau sortant, accès à une autre session) est bloqué et l'incident est journalisé. | Bloquant si retenue |
 | RUN-13 | Le coût de stockage marginal d’un environnement supplémentaire reste inférieur à 5 % du volume du tenant de référence, faute de quoi la concurrence exigée par NF-07 devient inabordable. | Bloquant |
-| o RUN-14 | Supervision de la flotte : état de santé et disponibilité de chaque environnement, détection des instances bloquées ou orphelines, alerte et destruction automatique. Sans quoi la supervision annoncée au §3 n’est portée par aucune exigence. | Élevée |
+| o RUN-14 | Supervision de la flotte : état de santé et disponibilité de chaque environnement, détection des instances bloquées ou orphelines, alerte et destruction automatique. Sans quoi rien n’adresse la santé d’une flotte d’environnements, que la concurrence exigée par NF-07 rend inévitable. | Élevée |
 
 ## 8. Surface *tool use* et connecteurs
 
@@ -284,6 +284,7 @@ L'offre dit « vite » et « à l'échelle de l'entreprise » sans les chiffrer.
 **Ce que l'offre demande et que ce document traite comme acquis.** « *You move fast because
 you have built the tooling, the AI scaffolds, and the verification harnesses that let you
 move fast without cutting corners.* » La vitesse n'est donc pas une exigence parmi les
-autres : c'est ce que l'outillage achète. `docs/plan.md` engage ~28 jours d'outillage sur une
-première cible pour rendre les suivantes rapides. Ce pari est la thèse du projet, et `NF-01`
+autres : c'est ce que l'outillage achète. `docs/plan.md` engage ~28 jours ordonnancés, dont le lot 3
+est déjà la deuxième cible : l'outillage se paie sur les deux premières pour rendre les
+suivantes rapides. Ce pari est la thèse du projet, et `NF-01`
 est ce qui le réfutera ou non.

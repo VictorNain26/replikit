@@ -68,7 +68,7 @@ Chaque valeur produite par le système est liée à une **variable symbolique** 
 première apparition ; toute réapparition doit référencer la même variable.
 
 *Fondement* : Hammoudi, Rothermel, Tonella (ICST 2016) mesurent 722 ruptures de rejeu sur
-300 versions, dont plus de 73 % dues aux ancrages.
+300 versions, dont plus de 73 % dues aux ancrages — **la part de 73 % n'est pas vérifiée**, §13.
 
 *Ce que ça apporte* : ce n'est pas un masquage mais une **vérification de cohérence
 référentielle**, strictement plus forte qu'ignorer le champ. Un clone qui renverrait deux
@@ -132,7 +132,7 @@ Comparaison par instantanés ARIA et géométrie **relative aux voisins immédia
 pixel n'est qu'un signal secondaire, jamais un critère d'échec.
 
 *Fondement* : X-PERT (ICSE 2013) obtient 76 % de précision et 95 % de rappel avec
-`diffRelativeLayouts`, et montre que les incompatibilités de structure dominent. Les
+`diffRelativeLayouts` — **chiffres non vérifiés**, §13 —, et montre que les incompatibilités de structure dominent. Les
 seuils par défaut des outils d'image sont des aveux : pixelmatch 0,1, Playwright 0,2,
 Chromatic 0,063 « pour équilibrer contre les artefacts comme l'antialiasing ».
 
@@ -165,8 +165,9 @@ l'**oracle**, qui rend son verdict sur ce qu'un navigateur observe.
 
 *Fondement* : Kambhampati et al. (ICML 2024) établissent que la solidité d'une boucle
 générer-tester-critiquer vient des **critiques sains**, et qu'un modèle auto-régressif ne
-s'auto-vérifie pas. Mesuré côté oracles de test : TOGLL rapporte 7 % de faux positifs sur
-les oracles d'exception et 25 % sur les oracles d'assertion — et c'est l'état de l'art.
+s'auto-vérifie pas. Côté oracles de test : TOGLL rapporte 7 % de faux positifs sur
+les oracles d'exception et 25 % sur les oracles d'assertion — **chiffres non vérifiés**, §13 —
+et c'est l'état de l'art.
 Un `ACC-01` à « 0 écart » adossé à un juge faux une fois sur quatre ne mesure rien.
 
 *Corollaire* : le clone est écrit par un agent, jugé par du code. La liste d'écarts **est**
@@ -366,7 +367,7 @@ substitut tiers trouvé.
 | Réf | Bloc | Outil / fondement |
 |---|---|---|
 | GEN-01 | `build/scaffold` | schéma SQL + migrations dérivés de `infer/entities` |
-| GEN-02 | `build/scaffold` | Prism ou Microcks pour le squelette servant l'OpenAPI ; contraintes en base |
+| GEN-02 | `build/scaffold` | couche d'accès typée dérivée de `infer/entities` ; contraintes appliquées par la base. Prism ou Microcks servent l'OpenAPI comme **témoin**, jamais comme clone (`docs/plan.md` lot 1) |
 | GEN-03 | `build/implement` | agent : messages d'erreur au caractère près ; vérifié par `judge/diff` |
 | GEN-04 | `build/implement` | écrans communs réutilisés, spécialisation par cible |
 | GEN-05 | `build/seed` | Greenmask, moteur `hash` = déterministe à paramétrage identique |
@@ -382,7 +383,7 @@ substitut tiers trouvé.
 
 | Réf | Bloc | Outil / fondement |
 |---|---|---|
-| RUN-01 | `run/sandbox` | Firecracker : restauration d'instantané en 5-30 ms |
+| RUN-01 | `run/sandbox` | Firecracker : restauration d'instantané annoncée en 5-30 ms — **non mesurée ici**, §13 |
 | RUN-02 | `run/sandbox` | instantané à un instant quelconque, réamorçable |
 | RUN-03 | `run/branch` | partage de blocs : instantanés btrfs/ZFS, ou PostgreSQL 18 `CREATE DATABASE … STRATEGY = FILE_COPY` **avec `file_copy_method = CLONE`** — réserve au §10.5 |
 | RUN-04 | `run/determinism` | `libfaketime` : `FAKETIME` **et** interception de `getrandom()` par graine, en LD_PRELOAD |
@@ -426,7 +427,7 @@ substitut tiers trouvé.
 | VER-08 | `judge/distinguish` | Classifier Two-Sample Test (D8) ; méthode SandPrint (RAID 2016) |
 | VER-09 | `judge/drift` | rejeu périodique sous budget `CAP-05` ; dette assumée du corpus figé |
 | VER-10 | `judge/screen` | `aria_snapshot(boxes=True)` (Playwright 1.60) ; gabarit `toMatchAriaSnapshot` **produit depuis la cible**, `/children: equal` ; géométrie relative (X-PERT) |
-| VER-11 | `judge/mutate` + `judge/accept` | taux de détection republié à chaque campagne ; jeu de fautes hors de portée du générateur (D4) |
+| VER-11 | `judge/mutate` | taux de détection republié à chaque campagne ; jeu de fautes hors de portée du générateur (D4). `judge/accept` ne fait que le joindre au rapport de livraison |
 
 ### Orchestration LLM
 
@@ -446,7 +447,7 @@ substitut tiers trouvé.
 | NF-01 | mesure | chronométré sur trois cibles consécutives ; **rien ne le garantit par construction** |
 | NF-02 | `build/seed` | Greenmask à 10^6 lignes sur les entités principales |
 | NF-03 | mesure | 95e centile sous 300 ms à la volumétrie NF-02 |
-| NF-04 | `run/sandbox` | restauration d'instantané en 5-30 ms contre 5 s exigées |
+| NF-04 | `run/sandbox` | restauration d'instantané annoncée en 5-30 ms contre 5 s exigées — **le chiffre est à mesurer**, §13 |
 | NF-05 | `run/determinism` | `libfaketime` + graines ; artefacts adressés par contenu (P1) |
 | NF-06 | `observe/store` | corpus figé, campagne en CI cible éteinte |
 | NF-07 | `run/sandbox` + `run/branch` | 100 environnements ; coût marginal borné par le CoW |
@@ -681,4 +682,19 @@ couverture du §1.
 - Les gains de Porcupine sur Knossos sont ceux annoncés par son auteur.
 - REAL revendique des répliques haute fidélité **sans décrire aucun protocole de
   validation** — c'est le vide que `judge/` occupe, et VeriEnv, vérifié plus haut, est dans
-  le même cas.
+  le même cas. La formulation « aucun protocole » vient d'une lecture de résumé, pas du
+  texte intégral.
+- `libfaketime` intercepterait `getrandom()` par graine en LD_PRELOAD (porte `RUN-04` et
+  `NF-05`) : sa fraîcheur est mesurée, ses capacités ne le sont pas.
+- Web Page Replay ferait avancer `Date` de 50 ms toutes les 25 constructions — fondement
+  unique de D3, et l'outil n'a pas été ouvert.
+- `route_web_socket()` « depuis la 1.48 » (`CAP-10`) : seul `boxes` « since v1.60 » a été
+  vérifié dans la documentation Playwright. Or `docs/plan.md` §6 fait de ces **deux**
+  versions un motif de ne rien réutiliser.
+- Les seuils par défaut pixelmatch 0,1 / Playwright 0,2 / Chromatic 0,063, et le comportement
+  d'`autojunk` de `difflib` au-delà de 1 % d'une séquence de 200.
+- Greenmask, moteur `hash` « déterministe à paramétrage identique » (porte `GEN-05`, `NF-05`).
+- **Tout le §3.1 de `docs/plan.md`** : l'API `/api/v4` documentée en OpenAPI, PostgreSQL, le
+  dépôt source disponible, les « 5 tables sur 95 », les identifiants de 26 caractères, la
+  licence. La cible sur laquelle repose l'intégralité du lot 1 n'a aucune entrée ici, et le
+  plan n'a pas de mécanisme de statut. C'est à vérifier au premier contact avec la cible.

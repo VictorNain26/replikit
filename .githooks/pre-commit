@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Refuse a commit that touches both the frozen specification and a package.
+#
+# The point is not to forbid changing the spec -- tests/spec/README.md says when that is
+# legitimate. The point is that it cannot happen quietly, buried in a commit that claims to
+# fix something else. A spec change must stand alone, with its own message saying why the
+# test was wrong.
+#
+# Enable once:  git config core.hooksPath .githooks
+
+set -euo pipefail
+
+stages=$(git diff --cached --name-only --diff-filter=ACMR)
+
+spec=$(echo "$stages" | grep -E '^tests/spec/' || true)
+code=$(echo "$stages" | grep -E '^(observe|infer|build|run|serve|judge|orchestrate)/' || true)
+
+if [ -n "$spec" ] && [ -n "$code" ]; then
+  echo "refus : ce commit touche à la fois la spécification gelée et un paquet." >&2
+  echo >&2
+  echo "spécification :" >&2; echo "$spec" | sed 's/^/  /' >&2
+  echo "code :" >&2;          echo "$code" | sed 's/^/  /' >&2
+  echo >&2
+  echo "Sépare-les. Une correction de spec est un commit isolé, dont le message" >&2
+  echo "démontre que le test échouait pour la mauvaise raison — pas que le code" >&2
+  echo "n'y arrivait pas. Voir tests/spec/README.md." >&2
+  exit 1
+fi
+
+if [ -n "$spec" ]; then
+  echo "note : ce commit modifie la spécification gelée." >&2
+  echo "       son message doit dire en quoi le test se trompait." >&2
+  python3 tools/check_spec_frozen.py >/dev/null 2>&1 || {
+    echo "       pense à 'python3 tools/check_spec_frozen.py --update'." >&2
+  }
+fi
+
+exit 0

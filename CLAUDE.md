@@ -21,11 +21,12 @@ it. Section numbers are anchors — never renumber one.
 Read all four before designing anything. French in `docs/`, English everywhere else.
 
 ```bash
-python tools/check_plan_coverage.py              # exits 1 on an orphan requirement or block
-python tools/check_plan_coverage.py --self-test  # exits 1 if that check has gone vacuous
+make check     # document coherence, the checks' own self-test, and the spec freeze
+make spec      # the executable specification -- red until the blocks exist
+make lot1      # a lot's exit criterion; exits non-zero until the lot is actually held
 ```
 
-The second command exists because the first one is a claim like any other. Run it after
+`--self-test` exists because a check is a claim like any other. Run `make check` after
 changing the shape of the plan's assignment table.
 
 ## Two rules that override convenience
@@ -48,6 +49,30 @@ inventing one.
 
 The same applies to us: **never say a lot is done, green, or fixed without having run its
 exit criterion and read the exit code.** The exit criteria are falsifiable on purpose.
+
+## The executable specification is frozen
+
+`tests/spec/` holds the requirements as tests. They are **not** unit tests: unit tests live
+beside their block, are disposable, and follow the design. These precede it, and they stay
+red until the code satisfies them.
+
+**The rule: a commit may not touch both `tests/spec/` and a package.** `.githooks/pre-commit`
+refuses it — enable the hook once with `git config core.hooksPath .githooks`. On top of that,
+`tools/check_spec_frozen.py` compares every spec file to its hash in `tests/spec/MANIFEST`.
+Neither forbids changing the spec; together they make it impossible to change it *quietly*.
+
+This is not distrust dressed up as process. It is the same mechanism `VER-11` imposes on the
+clone generator — the fault set is never exposed to what is being graded — turned on
+ourselves, because published work on coding agents lists "modifying tests" and "overfitting
+to visible tests" among the shortcuts that get taken when a score is the objective.
+
+**When correcting the spec is legitimate**: when the test failed *for the wrong reason* — not
+when the code could not satisfy it. The commit that corrects it carries that demonstration in
+its message, and runs `check_spec_frozen.py --update` in that same isolated commit. That
+distinction is the whole difference between fixing an error and weakening a criterion.
+
+**Before freezing a new test, watch it fail and read the message.** A test that passes for
+the wrong reason is the worst kind, and once frozen it is invisible.
 
 ## Where code goes, and how a block is shaped
 
