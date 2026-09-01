@@ -43,6 +43,17 @@ def importe(chemin: str):
 
 
 IMPORT_LLM = re.compile(
-    r"^\s*(?:from|import)\s+(anthropic|openai|litellm|langchain\w*|mistralai|cohere|ollama|google\.gener\w*)\b",
+    r"^\s*(?:(?:from|import)\s+(?:anthropic|openai|litellm|langchain\w*|mistralai|cohere|ollama"
+    r"|google\.gener\w*|google\.genai|vertexai|groq|together|pydantic_ai|instructor|dspy"
+    r"|llama_index|smolagents|autogen\w*|crewai|transformers|huggingface_hub|vllm)\b"
+    r"|from\s+google\s+import\s+genai\b)",
+    re.M,
+)
+
+# P1, lu strictement : un bloc est le module `paquet/bloc.py`, et aucun module des sept
+# paquets n'importe un module des sept paquets — le sien compris. Le code commun vit hors
+# des paquets, comme `artefacts`.
+IMPORT_PAQUET = re.compile(
+    r"^\s*(?:from\s+(?:%(p)s)(?:\.\w+)*\s+import\b|import\s+(?:%(p)s)(?:\.\w+)*\b)" % {"p": "|".join(PAQUETS)},
     re.M,
 )

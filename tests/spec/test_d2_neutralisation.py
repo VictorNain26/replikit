@@ -30,7 +30,7 @@ def test_neutralisation_citant_un_run_aa_ou_le_champ_ne_varie_pas_est_refusee(tm
     """Citer un run ne suffit pas : le run doit montrer que le champ varie effectivement."""
     policy = importe("judge/policy")
     aa = tmp_path / "aa.json"
-    aa.write_text('{"champs_variables": ["reponse.body.id"]}', encoding="utf-8")
+    aa.write_text('{"champs_variables": ["reponse.headers.date"]}', encoding="utf-8")
     fichier = tmp_path / "equivalence.yaml"
     fichier.write_text(
         "neutralisations:\n"
@@ -47,17 +47,21 @@ def test_politique_est_lue_par_le_code_pas_seulement_relue(tmp_path):
     """« Une politique que rien ne parse est un document, pas une politique » — plan, lot 2.
 
     Le test qui l'établit : modifier une entrée du fichier doit changer le comparateur.
+
+    Le champ de l'exemple est un en-tête `Date` : il varie entre deux rejeux et ne
+    réapparaît jamais, donc D1 ne le lie pas et D2 seule en décide. Un identifiant, lui,
+    est lié par D1 et ne se neutralise pas.
     """
     policy = importe("judge/policy")
     aa = tmp_path / "aa.json"
-    aa.write_text('{"champs_variables": ["reponse.body.id"]}', encoding="utf-8")
+    aa.write_text('{"champs_variables": ["reponse.headers.date"]}', encoding="utf-8")
     vide = tmp_path / "vide.yaml"
     vide.write_text("neutralisations: []\n", encoding="utf-8")
     une = tmp_path / "une.yaml"
     une.write_text(
         "neutralisations:\n"
-        "  - champ: reponse.body.id\n"
-        "    motif: identifiant aléatoire\n"
+        "  - champ: reponse.headers.date\n"
+        "    motif: en-tête Date, varie entre rejeux, jamais réutilisé\n"
         f"    run_aa: {aa}\n",
         encoding="utf-8",
     )

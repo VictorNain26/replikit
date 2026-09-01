@@ -19,7 +19,7 @@ def test_aucun_import_de_client_llm_sous_judge():
     fichiers = sources("judge")
     assert fichiers, "le paquet `judge` n'existe pas encore"
     fautifs = [
-        f"{f.relative_to(RACINE)}:{m.group(1)}"
+        f"{f.relative_to(RACINE)} : {m.group(0).strip()}"
         for f in fichiers
         for m in IMPORT_LLM.finditer(f.read_text(encoding="utf-8"))
     ]

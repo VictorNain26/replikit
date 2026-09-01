@@ -41,5 +41,39 @@ inscription dans `docs/architecture.md` :
    variables, `VER-10` nomme l'ARIA, rien ne dit comment ils tiennent ensemble.
 3. **`scope.yaml`** — le dénominateur de `VER-05` et la condition d'`ACC-01`/`ACC-02`. Cité
    six fois, jamais décrit.
+4. **La forme physique d'un bloc** — un bloc est le module `paquet/bloc.py`, et P1 se lit
+   strictement : aucun module des sept paquets n'importe un module des sept paquets, le sien
+   compris. Le code commun vit hors des paquets, comme `artefacts`. Une version antérieure de
+   `test_aucun_bloc_n_importe_un_autre_bloc` ne regardait que les imports *entre* paquets et
+   passait sur `observe/normalise` important `observe/drive`.
+5. **Le format de la politique et du relevé A/A** — `equivalence.yaml` porte des
+   `neutralisations` citant chacune un `run_aa` ; le relevé A/A est un JSON à
+   `champs_variables`. Ni l'un ni l'autre ne distingue encore ce que D1 **lie** de ce que D2
+   **neutralise** ; `docs/architecture.md` D2 dit désormais lequel décide de quoi.
+6. **Le lieu du jeu de fautes** — `test_le_jeu_de_fautes_n_est_pas_accessible_au_generateur`
+   ne vérifie qu'une absence d'import. `docs/architecture.md` §10.8 dit pourquoi ça ne
+   suffit pas ; le test suivra la décision.
 
 Tant qu'elles ne sont pas ratifiées, ces tests sont des propositions rouges, pas un contrat.
+
+## Ce que ces tests n'ont pas encore : des entrées
+
+Les tests de `test_lot1_*.py` passent à chaque bloc des chemins qui n'existent pas —
+`tmp_path / "connexion.yaml"` n'est jamais écrit, `tmp_path / "trace"` n'est jamais rempli.
+Tels quels, ils ne peuvent être satisfaits que par un bloc qui **fabrique une sortie sans
+lire son entrée**, ce qui est le comportement qu'ils existent pour interdire. Et plusieurs
+n'observent qu'une auto-déclaration — `clone.contraintes_en_base`, `resultat.familles` — là
+où l'exigence parle d'un comportement : `GEN-02` dit « effectivement appliquées par la
+base », donc le test doit insérer une ligne interdite et voir la base la refuser.
+
+La correction demande une décision, pas une retouche : d'où viennent les entrées de la spec.
+
+- Les blocs qui lisent une trace (`infer/`, `build/`, `judge/`) consommeront une **trace
+  figée sous `tests/spec/fixtures/`**, enregistrée sur la cible une fois `observe/drive` et
+  `observe/normalise` livrés, puis gelée dans `MANIFEST` par un commit isolé.
+- Les blocs qui touchent la cible (`observe/drive`) exigent une cible vivante, désignée par
+  une variable d'environnement, et **échouent explicitement** en son absence — jamais
+  `skip`, qui rendrait vert ce qui n'a pas tourné.
+
+Jusqu'à cette décision, ces tests sont rouges pour une raison lisible mais **pas pour la
+bonne** : « le bloc n'existe pas » masque « le test n'a pas d'entrée ».

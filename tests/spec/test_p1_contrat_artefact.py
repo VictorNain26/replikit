@@ -10,7 +10,7 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from conftest import PAQUETS, RACINE, importe, sources
+from conftest import IMPORT_PAQUET, PAQUETS, RACINE, importe, sources
 
 
 def test_meme_contenu_donne_le_meme_identifiant(tmp_path):
@@ -37,7 +37,7 @@ def test_identifiant_survit_a_un_changement_de_processus(tmp_path):
     attendu = artefacts.put(fichier)
     obtenu = subprocess.run(
         [sys.executable, "-c", f"import artefacts;print(artefacts.put({str(fichier)!r}))"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, check=True, cwd=RACINE,
     ).stdout.strip()
     assert obtenu == attendu
 
@@ -50,16 +50,16 @@ def test_un_artefact_est_relisible_par_son_identifiant(tmp_path):
 
 
 def test_aucun_bloc_n_importe_un_autre_bloc():
-    """P1 : « aucun bloc n'en appelle un autre ». Vérifiable par lecture, donc vérifié."""
+    """P1 : « aucun bloc n'en appelle un autre » — ni d'un autre paquet, ni du sien.
+
+    Décision n°4 à ratifier (README.md de ce répertoire) : un bloc est le module
+    `paquet/bloc.py`, et le code commun vit hors des sept paquets, comme `artefacts`.
+    """
     fichiers = [f for p in PAQUETS for f in sources(p)]
     assert fichiers, "aucun des sept paquets n'existe encore"
-    fautifs = []
-    for fichier in fichiers:
-        paquet = fichier.relative_to(RACINE).parts[0]
-        texte = fichier.read_text(encoding="utf-8")
-        for autre in PAQUETS:
-            if autre == paquet:
-                continue
-            if any(m in texte for m in (f"import {autre}.", f"from {autre}.", f"from {autre} import")):
-                fautifs.append(f"{fichier.relative_to(RACINE)} importe {autre}")
-    assert not fautifs, "\n".join(fautifs)
+    fautifs = [
+        f"{f.relative_to(RACINE)} : {m.group(0).strip()}"
+        for f in fichiers
+        for m in IMPORT_PAQUET.finditer(f.read_text(encoding="utf-8"))
+    ]
+    assert not fautifs, "un bloc en importe un autre :\n" + "\n".join(fautifs)
