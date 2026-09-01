@@ -107,9 +107,11 @@ configuration générée au premier démarrage figée et versionnée. Sans cela,
 deux exécutions dont rien ne garantit qu'elles ont observé la même cible, et le plancher de
 bruit qu'il établit ne veut rien dire.
 
-*Risques connus* : identifiants aléatoires de 26 caractères et horodatages en epoch ms
-(traités par D1) ; licence AGPL-3.0 ou commerciale et **marque protégée — toute démonstration
-publique devra rebrander** ; configuration générée au premier démarrage, à figer et versionner.
+*Risques connus* : identifiants aléatoires de 26 caractères en z-base-32 et horodatages en
+epoch ms (traités par D1) ; sources sous AGPL-3.0 ou licence commerciale, binaires sous MIT,
+parties sous Apache-2.0 (`docs/architecture.md` §13) et **marque protégée — toute
+démonstration publique devra rebrander** ; configuration générée au premier démarrage, à
+figer et versionner ; le compose officiel épingle par étiquette, le *digest* est à relever.
 
 ### 3.2 Deuxième cible — choisie pour ce qu'elle casse
 
@@ -251,9 +253,11 @@ d'itérations en baisse ou expliqué.
 *Exigences* : `RUN-01` à `RUN-08`, `RUN-10`, `RUN-13`, `GEN-09`, `API-01` à `API-07`,
 `API-09`, `API-10`, `NF-02`, `NF-03`, `NF-04`, `NF-07`, `NF-08`.
 
-`run/faults`, `run/fleet` et `serve/contract` servent `RUN-09`, `RUN-14` et `API-08`, qui
-sont des extensions : ces blocs ne sont livrés que si l'extension correspondante est retenue.
-Le reste du lot ne dépend pas d'elles.
+`run/faults` et `serve/contract` ne servent que `RUN-09` et `API-08`, qui sont des
+extensions : ces deux blocs ne sont livrés que si l'extension correspondante est retenue.
+`run/fleet` est livré dans tous les cas — il porte `RUN-08` et la vue de portefeuille de
+`NF-08` — et `RUN-14` ne lui ajoute la supervision que si elle est retenue. Le reste du lot ne
+dépend d'aucune extension.
 
 Trois exigences de ce lot se ratent de la même façon, et il faut le dire avant de les
 écrire. `RUN-03` (isolation) et `RUN-05` (hors ligne) se « démontrent » facilement par une
@@ -296,6 +300,14 @@ où tout passe : c'est un lot où chaque critère porte un verdict produit par u
 `CAP-11`, `GEN-10`, `RUN-11` et `ACC-09` sont bloquantes pour elle. Tant que le temps réel et
 le multi-acteur sont ici, **aucun clone produit avant n'est livrable au sens du §12**. C'est
 acceptable pour un banc, à condition de ne pas le confondre avec une livraison.
+
+*Une exigence de ce lot n'a pas d'objet dans ce dépôt.* `GEN-12` migre « les environnements
+existants construits sur fichiers JSON à plat », et ce dépôt part de zéro (§6) : aucun
+environnement d'origine n'existe ici, et en fabriquer un pour l'occasion contredirait
+`GEN-01`. L'exigence reste bloquante et de socle — elle ne tombe pas parce que ce dépôt ne la
+sollicite pas, même règle que `CAP-05` au lot 1 — et son critère ne s'exécute que sur un
+environnement d'origine fourni de l'extérieur. Tant qu'il ne l'est pas, `make lot6` la
+consigne en échec, au même titre qu'`ACC-10` (§7).
 
 ## 5. Couverture — blocs et exigences bloquantes par lot
 
@@ -351,6 +363,16 @@ c'est une modification du cahier des charges, donc une décision de périmètre.
 commercial**, ce qui lève la contrainte sur les dépendances copyleft — `edist` (GPLv3)
 redevient disponible, l'AGPL cesse d'être un motif d'écartement, et OpenFastTrace (GPL-3.0)
 redevient discutable au lot 4. Reste à choisir la licence que *replikit* porte lui-même.
+
+**Fournir un environnement d'origine pour `GEN-12`.** L'exigence migre un existant que ce
+dépôt n'a pas (lot 6). Qui le fournit, et sous quelle forme — un jeu de fichiers JSON et les
+traces capturées dessus — est une décision de périmètre. Sans lui, `GEN-12` est consignée en
+échec, pas retirée.
+
+**Le jeu de fautes a besoin d'un lieu** hors du chemin de l'agent (`docs/architecture.md`
+§10.8), et le run A/A d'une forme sur une cible sans reset (§10.6) avant le lot 3. Deux
+décisions techniques, à prendre dans l'architecture, sans lesquelles les critères de sortie
+des lots 2 et 3 reposent sur des tests qui ne vérifient qu'un import.
 
 **`ACC-10` est en échec, et le reste.** Le critère exige une revue croisée par un Curriculum
 Engineer. Personne ne tient ce rôle sur ce projet. La règle 1 interdit de détendre le critère

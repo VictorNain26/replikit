@@ -29,8 +29,9 @@ ce qui a été sondé » — c'est ce que D8 rend chiffrable au lieu de le laiss
 **La couverture est circulaire.** Le modèle de référence est inféré des traces : « 100 %
 de couverture » veut dire « 100 % de l'observé ». La W-method de Chow (1978) n'est
 complète que sous une borne connue sur le nombre d'états, qu'aucun tiers ne fournit.
-Böhme et al. (FSE 2021) montrent que les estimateurs de risque résiduel en campagne
-adaptative sous-estiment systématiquement le risque réel.
+Böhme et al. (FSE 2021) montrent que les estimateurs de risque résiduel conçus pour le
+boîte-noire, appliqués à une campagne adaptative, « *systematically and substantially
+under-estimate the true risk* » — biais adaptatif que la campagne de `VER-03` partage.
 
 ## 2. Principes
 
@@ -67,8 +68,11 @@ un coût.
 Chaque valeur produite par le système est liée à une **variable symbolique** à sa
 première apparition ; toute réapparition doit référencer la même variable.
 
-*Fondement* : Hammoudi, Rothermel, Tonella (ICST 2016) mesurent 722 ruptures de rejeu sur
-300 versions, dont plus de 73 % dues aux ancrages — **la part de 73 % n'est pas vérifiée**, §13.
+*Fondement* : Hammoudi, Rothermel, Tonella (ICST 2016) relèvent 1 065 ruptures de rejeu sur
+453 versions de huit applications web, dont 73,62 % dues aux localisateurs obsolètes — §13.
+Une version antérieure de ce document écrivait « 722 ruptures sur 300 versions » et rangeait
+ces deux chiffres parmi les vérifiés : ils étaient faux, et c'est l'audit du 01/09/2026 qui
+l'a établi en ouvrant la source.
 
 *Ce que ça apporte* : ce n'est pas un masquage mais une **vérification de cohérence
 référentielle**, strictement plus forte qu'ignorer le champ. Un clone qui renverrait deux
@@ -87,23 +91,32 @@ primary↔candidate. Le code de Diffy est écarté (CC-BY-NC-ND), l'idée est co
 
 *La forme que prend la violation* : elle ne se présente jamais comme un affaiblissement.
 Elle se présente comme un opérateur qui rend le diff moins bruyant — `eq` aliasé sur une
-recherche de sous-chaîne, un seuil de similarité fixé à une valeur plausible et jamais
-déclarée. Chacune est défendable prise isolément, aucune n'est mesurée, et ensemble elles
-transforment l'oracle en tampon. C'est pourquoi D2 ne porte pas sur l'intention mais sur la
+recherche de sous-chaîne, un seuil de similarité fixé à une valeur plausible — 0,78 dans le
+cas consigné — et jamais déclarée. Chacune est défendable prise isolément, aucune n'est
+mesurée, et ensemble elles transforment l'oracle en tampon. C'est pourquoi D2 ne porte pas sur l'intention mais sur la
 preuve : **une neutralisation sans run A/A qui la justifie est refusée, même si elle a
 l'air juste.**
 
-*Mise en œuvre* : `diff(cible, cible)` — la politique est **dérivée** d'un appel, pas
-déclarée à vue.
+*Mise en œuvre* : `diff(cible, cible)` produit le relevé des champs qui varient. La politique
+reste le fichier déclaratif et relu que `VER-02` exige ; ce que D2 ajoute, c'est que chaque
+entrée cite ce relevé et qu'une entrée absente du relevé est refusée à la compilation. Le
+relevé est mesuré, la politique est déclarée, et le second ne peut pas contredire le premier.
+
+*Ce que D1 laisse à D2* : un identifiant ou un horodatage qui réapparaît est **lié** par D1,
+jamais neutralisé — la liaison est plus forte. Ne relèvent de D2 que les valeurs qui varient
+entre deux rejeux sans jamais réapparaître (un en-tête `Date`, une latence) et l'ordre non
+garanti. Une politique qui neutralise un identifiant contourne D1.
 
 ### D3 — Déterminiser à la source, plutôt que masquer à la comparaison
 
 Toute neutralisation inscrite dans la politique doit être justifiée comme un **échec de
 déterminisation**, pas comme une variation constatée.
 
-*Fondement* : le `deterministic.js` de Web Page Replay réécrit `Math.random` en
-générateur à graine fixe et fait avancer `Date` de 50 ms toutes les 25 constructions.
-C'est `RUN-04`, et `libfaketime` le fait aujourd'hui sans toucher au code.
+*Fondement* : le `deterministic.js` de Web Page Replay remplace `Math.random` par une suite
+fixe — 0,462, incrémentée de 0,1 tous les 25 appels — et fait avancer `Date` de 50 ms toutes
+les 25 constructions, lu dans la source, §13. C'est `RUN-04`, et `libfaketime` le fait
+aujourd'hui sans toucher au code, sous une réserve documentée : l'interception de
+`getrandom()` par `FAKERANDOM_SEED` exige une compilation avec `FAKE_RANDOM`, Linux seulement.
 
 ### D4 — Valider l'oracle par injection de fautes
 
@@ -124,6 +137,14 @@ republié à chaque campagne, et **le jeu de fautes n'est jamais exposé au gén
 générateur qui voit les fautes semées apprend les fautes. *Before the Model Learns the Bug :
 Fuzzing RLVR Verifiers* (arXiv 2606.01066) construit sa méthode sur exactement ce risque.
 
+*Ce que « jamais exposé » couvre exactement* : le jeu **initial**, semé avant que l'agent
+n'écrive une ligne, et toute faute ajoutée sans passer par la liste d'écarts. Les fautes que
+`VER-07` y ajoute viennent d'écarts corrigés, donc d'écarts que le générateur a reçus en
+retour : pour celles-là le secret est levé par construction, et leur rôle n'est pas de piéger
+le générateur mais de garantir que l'oracle continue de voir ce qu'il a vu une fois. Le taux
+publié distingue donc les deux sous-ensembles, faute de quoi un jeu qui grossit d'écarts déjà
+connus fait monter le taux sans rien mesurer de neuf.
+
 *Sur quoi porte la faute* : sur la **trace figée**, jamais sur la cible.
 `docs/cahier-des-charges.md` §9.1 pose que « l'oracle principal est un corpus de traces
 figées » et D6 interdit qu'un privilège sur la cible porte un verdict — muter la cible
@@ -138,16 +159,18 @@ Comparaison par instantanés ARIA et géométrie **relative aux voisins immédia
 pixel n'est qu'un signal secondaire, jamais un critère d'échec.
 
 *Fondement* : X-PERT (ICSE 2013) obtient 76 % de précision et 95 % de rappel avec
-`diffRelativeLayouts` — **chiffres non vérifiés**, §13 —, et montre que les incompatibilités de structure dominent. Les
+`diffRelativeLayouts` — vérifiés, §13 —, et montre que les incompatibilités de structure dominent. Les
 seuils par défaut des outils d'image sont des aveux : pixelmatch 0,1, Playwright 0,2,
 Chromatic 0,063 « pour équilibrer contre les artefacts comme l'antialiasing ».
 
-*Ce que Playwright 1.59/1.60 change* : `ariaSnapshotJSON` rend l'arbre comme objet JSON, avec
-`box` en propriété, et `mode: "ai"` produit un instantané pensé pour la consommation par un
-modèle, références d'éléments comprises. La conséquence est que `judge/screen` n'a pas à
-analyser le YAML `[box=…]` : il consomme une structure. Ce qui reste maison est la **géométrie
-relative** — les `box` sont exprimés par rapport à la fenêtre, jamais aux voisins — et c'est
-tout ce qui reste maison.
+*Ce que Playwright 1.59/1.60 change* : `aria_snapshot(boxes=True)` (1.60) ajoute à chaque
+nœud son `[box=x,y,width,height]`, et `mode="ai"` (1.59) produit un instantané pensé pour la
+consommation par un modèle. `ariaSnapshotJSON`, qui rendrait l'arbre en objet JSON avec `box`
+en propriété, est documenté « since v1.63 », **en JavaScript seulement, sans équivalent
+Python** — une version antérieure de ce document le tenait pour acquis (§13). `judge/screen`
+analyse donc le YAML et ses `[box=…]`, quelques lignes, jusqu'à ce que l'API Python le rende.
+Ce qui reste maison est la **géométrie relative** — les `box` sont exprimés par rapport à la
+fenêtre, jamais aux voisins.
 
 *Coût* : on renonce à détecter les régressions purement visuelles. Pour un environnement
 d'agents, c'est le bon arbitrage : l'agent lit la structure.
@@ -172,8 +195,8 @@ l'**oracle**, qui rend son verdict sur ce qu'un navigateur observe.
 *Fondement* : Kambhampati et al. (ICML 2024) établissent que la solidité d'une boucle
 générer-tester-critiquer vient des **critiques sains**, et qu'un modèle auto-régressif ne
 s'auto-vérifie pas. Côté oracles de test : TOGLL rapporte 7 % de faux positifs sur
-les oracles d'exception et 25 % sur les oracles d'assertion — **chiffres non vérifiés**, §13 —
-et c'est l'état de l'art.
+les oracles d'exception et 25 % sur les oracles d'assertion — vérifiés, §13 — et c'est
+l'état de l'art.
 Un `ACC-01` à « 0 écart » adossé à un juge faux une fois sur quatre ne mesure rien.
 
 *Corollaire* : le clone est écrit par un agent, jugé par du code. La liste d'écarts **est**
@@ -319,8 +342,9 @@ LearnLib lui-même reste actif. On lit ALEX comme un précédent de méthode, pa
 dépendance disponible.
 
 Même principe pour l'exploration. Une étude empirique de 2026 (arXiv 2606.16650) mesure, à
-budget égal sur six applications : couverture de code RL 57,60 %, model-based ~49-50 %,
-LLM (GPTWeb) 49,39 % ; défaillances uniques 33 pour WebExplor contre 24 pour GPTWeb.
+budget égal sur six applications : couverture de code RL 57,60 % (WebRLED) et 52,45 %
+(WebExplor), model-based 49,12 % (Crawljax) et 50,43 % (FragGen), LLM (GPTWeb) 49,39 % ;
+défaillances uniques 33 pour WebExplor contre 24 pour GPTWeb — table 3 et RQ4, §13.
 L'agent exécute trois à quatre fois moins d'actions à cause du coût d'inférence, et les
 familles trouvent des défauts **complémentaires**. L'agent complète l'exploration — il
 atteint les états qu'un crawler ne sait pas ouvrir — il ne la remplace pas.
@@ -393,7 +417,7 @@ substitut tiers trouvé.
 | GEN-02 | `build/scaffold` | couche d'accès typée dérivée de `infer/entities` ; contraintes appliquées par la base. Prism ou Microcks servent l'OpenAPI comme **témoin**, jamais comme clone (`docs/plan.md` lot 1) |
 | GEN-03 | `build/implement` | agent : messages d'erreur au caractère près ; vérifié par `judge/diff` |
 | GEN-04 | `build/implement` | écrans communs réutilisés, spécialisation par cible |
-| GEN-05 | `build/seed` | Greenmask, moteur `hash` = déterministe à paramétrage identique |
+| GEN-05 | `build/seed` | Greenmask, moteur `hash` (SHA-3, sel `GREENMASK_GLOBAL_SALT`) : « *designed to generate deterministic data* », §13 |
 | GEN-06 | `build/preserve` | ajustements manuels en fichiers séparés ; non-destruction testée |
 | GEN-07 | `build/implement` | comportements asynchrones observés, délais compris |
 | GEN-08 | `build/implement` | rôles et autorisations, y compris fuites par différence de message |
@@ -408,8 +432,8 @@ substitut tiers trouvé.
 |---|---|---|
 | RUN-01 | `run/sandbox` | Firecracker : restauration d'instantané annoncée en 5-30 ms — **non mesurée ici**, §13 |
 | RUN-02 | `run/sandbox` | instantané à un instant quelconque, réamorçable |
-| RUN-03 | `run/branch` | partage de blocs : instantanés btrfs/ZFS, ou PostgreSQL 18 `CREATE DATABASE … STRATEGY = FILE_COPY` **avec `file_copy_method = CLONE`** — réserve au §10.5 |
-| RUN-04 | `run/determinism` | `libfaketime` : `FAKETIME` **et** interception de `getrandom()` par graine, en LD_PRELOAD |
+| RUN-03 | `run/branch` | partage de blocs : instantanés btrfs/ZFS, ou PostgreSQL 18 `CREATE DATABASE … STRATEGY = FILE_COPY` sous le paramètre serveur `file_copy_method = CLONE` — réserve au §10.5 |
+| RUN-04 | `run/determinism` | `libfaketime` : `FAKETIME`, et `FAKERANDOM_SEED` pour `getrandom()` — compilé avec `FAKE_RANDOM`, Linux seulement (§13) |
 | RUN-05 | `run/sideeffects` | aucune sortie réseau ; tout effet de bord a un double local |
 | RUN-06 | `run/admin` | surface d'administration hors trace de l'agent |
 | RUN-07 | `run/journal` | journalisation intégrale exportable |
@@ -442,11 +466,11 @@ substitut tiers trouvé.
 |---|---|---|
 | VER-01 | `judge/replay` + `judge/diff` | `diff(cible, clone)` |
 | VER-02 | `judge/policy` | politique **compilée** depuis `diff(cible, cible)` ; lue par le code |
-| VER-03 | `judge/adversary` | agent adversarial ; la famille RL est représentée par WebExplor, dont le code (`deepexplorer-web/WebExplor`) est **figé depuis le 05/09/2020** — le résultat de complémentarité (arXiv 2606.16650) reste, l'outil est à remplacer avant le lot 6 |
+| VER-03 | `judge/adversary` | agent adversarial **sans modèle**, P3 oblige : un agent RL ou de recherche, dont le verdict reste `judge/diff`. WebExplor (`deepexplorer-web/WebExplor`) est **figé depuis le 05/09/2020** ; WebRLED, meilleure couverture de l'étude arXiv 2606.16650, est le premier candidat de remplacement, dépôt non mesuré (§13). Un adversaire piloté par un modèle relèverait d'`observe/explore` |
 | VER-04 | `judge/edge` | Schemathesis (bornes, nullité, encodage) ; ordre d'opérations depuis `infer/deps` (RESTler, Morest) ; concurrence par Porcupine / Elle |
 | VER-05 | `judge/coverage` | dénominateur = `targets/<cible>/scope.yaml`, arrêté avant campagne |
 | VER-06 | `judge/diff` | rapport hiérarchisé, trace de reproduction jointe |
-| VER-07 | `judge/mutate` | tout écart corrigé devient une faute semée permanente |
+| VER-07 | `judge/mutate` | tout écart corrigé reste dans le corpus rejoué (`NF-06`) **et** devient une faute semée permanente : le premier garde le clone, la seconde garde l'oracle qui garde le clone (D4) |
 | VER-08 | `judge/distinguish` | Classifier Two-Sample Test (D8) ; méthode SandPrint (RAID 2016) |
 | VER-09 | `judge/drift` | rejeu périodique sous budget `CAP-05` ; dette assumée du corpus figé |
 | VER-10 | `judge/screen` | `aria_snapshot(boxes=True)` (Playwright 1.60) ; gabarit `toMatchAriaSnapshot` **produit depuis la cible**, `/children: equal` ; géométrie relative (X-PERT) |
@@ -526,6 +550,34 @@ une **mesure à faire sur le système de fichiers retenu**, jamais une propriét
 l'outil. `pg_branch`, cité dans une version antérieure de ce document, était une extension
 expérimentale abandonnée en octobre 2023 : elle est retirée.
 
+**10.6 — Le run A/A sur une cible sans reset.** D2 conditionne toute neutralisation à un
+run A/A, et le lot 3 de `docs/plan.md` retire le reset. Deux rejeux consécutifs sur une cible
+à état ne diffèrent pas seulement par le bruit : le second voit l'état laissé par le premier
+— un compteur, un message de plus, un doublon refusé. Un `diff(cible, cible)` pris tel quel
+classerait ces différences comme du bruit, et D2 autoriserait alors à neutraliser des champs
+qui portent du comportement : exactement le tampon que D2 existe pour interdire. Pistes,
+aucune mesurée : des comptes jetables par rejeu, un scénario borné aux lectures pour
+l'étalonnage, ou un relevé qui sépare ce qui varie *entre* rejeux de ce qui varie *avec*
+l'état. Tant que ce n'est pas tranché, le critère de sortie du lot 3 repose sur une politique
+dont la justification n'a pas de forme définie.
+
+**10.7 — Le sélecteur figé ne survit pas à la régénération du clone.** Le §6 résout
+l'intention une fois par implémentation et fige le sélecteur. Or la boucle `LLM-01`
+régénère le clone à chaque itération, et chaque régénération peut invalider les sélecteurs
+figés sur la précédente. Soit on résout à nouveau — et un modèle rentre dans la boucle de
+rejeu à chaque tour, ce que P3 tolère mal — soit le scénario s'adresse au clone par ce que
+`VER-10` compare déjà : le rôle et le nom ARIA, identiques à ceux de la cible par exigence.
+La seconde voie rend la résolution inutile côté clone — un sélecteur ARIA résolu sur la
+cible vaut sur tout clone fidèle, et son échec est un écart, pas une panne de rejeu. Elle
+n'est pas mesurée.
+
+**10.8 — Le jeu de fautes n'a pas de lieu.** `VER-11` interdit son exposition au générateur
+et `tests/spec/` ne vérifie aujourd'hui qu'une absence d'import. Or l'agent de
+`orchestrate/loop` lit des artefacts, et un jeu de fautes rangé dans le même dépôt
+d'artefacts que les traces lui est lisible sans importer quoi que ce soit. La séparation
+doit être physique — un dépôt distinct, hors du chemin de l'agent — et elle n'est pas
+décidée.
+
 ## 11. Ce qu'on n'écrit pas
 
 Pas de registre de cibles, pas de système de plugins, pas de moteur de graphe de tâches —
@@ -562,7 +614,7 @@ Deux entrées s'y ajoutent, avec le substitut qui a été cherché :
   runtime **Java 17** — le motif qui a déjà écarté ALEX/LearnLib. Aucun des deux aujourd'hui.
   La question se rouvre au lot 4, quand la traçabilité devra atteindre du code source : c'est
   exactement le cas d'usage d'OpenFastTrace, et le JVM se discutera alors contre un bénéfice
-  réel plutôt que contre un script de 95 lignes.
+  réel plutôt que contre un script maison.
 
 ## 12. Outils écartés, avec leur motif
 
@@ -642,7 +694,8 @@ Mailpit · mock-oauth2-server · WireMock · Toxiproxy · MLflow · Langfuse · 
 Elle (Jepsen) · Crawlee · MinIO (24/04) · detect-secrets (02/04).
 
 **Non mesurés, à regarder avant de s'y adosser** : Playwright et
-datamodel-code-generator, dont seule la documentation a été lue ; Morest ; Alembic ; `edist`.
+datamodel-code-generator, dont seule la documentation a été lue ; Morest ; Alembic ; `edist` ;
+WebRLED, dont seul le résultat publié a été lu.
 
 **Datés, changés de main, ou retirés.**
 
@@ -650,10 +703,10 @@ datamodel-code-generator, dont seule la documentation a été lue ; Morest ; Ale
 |---|---|---|
 | **`pg_branch`** | extension « experimental », dernier push **06/10/2023** ; l'autre dépôt du même nom est un [WIP] de 2022 | **Retiré** de `run/branch` (§10.5) |
 | **Crawljax** | dernière release `crawljax-5.2.3` le **01/06/2023**, dernier push 18/09/2023 | Référence de méthode pour le graphe d'états ; le parcours passe à Crawlee |
-| **WebExplor** | `deepexplorer-web/WebExplor`, figé depuis le **05/09/2020** | Le résultat de complémentarité tient, l'outil est à remplacer avant le lot 6 |
+| **WebExplor** | `deepexplorer-web/WebExplor`, figé depuis le **05/09/2020** | Le résultat de complémentarité tient, l'outil est à remplacer avant le lot 6 ; WebRLED est le candidat |
 | **ALEX** | `LearnLib/alex`, figé depuis le **05/08/2024** — LearnLib lui-même actif au 16/08/2026 | Précédent de méthode (§7), pas une dépendance |
-| **DeepDiff** | dépôt passé de `seperman` à `qlustered` | La version 9.1 et la licence MIT sont **à revérifier** sous le nouveau propriétaire |
-| **FastMCP** | dépôt passé de `jlowin` à `PrefectHQ` | `from_openapi()` et `from_fastapi()` **existent toujours** en 4.x, adossés à `OpenAPIProvider` ; migration 2.x → 4.x documentée. La revendication tient, l'adresse a changé |
+| **DeepDiff** | `seperman/deepdiff` redirige vers [`qlustered/deepdiff`](https://github.com/qlustered/deepdiff) — « *DeepDiff is now part of Qluster* » | [PyPI](https://pypi.org/pypi/deepdiff/json) : version 9.1.0, classifieur « *MIT License* » ; `LICENSE` du dépôt : « *The MIT License (MIT) — Copyright (c) 2014 - 2026 Sep Dehpour* ». L'adresse a changé, la revendication tient |
+| **FastMCP** | `jlowin/fastmcp` redirige vers [`PrefectHQ/fastmcp`](https://github.com/PrefectHQ/fastmcp), Apache-2.0, `v4.0.0` publiée le 31/08/2026 | `from_openapi()` et `from_fastapi()` lus dans `fastmcp/server/server.py` de `main` et documentés sur [gofastmcp.com](https://gofastmcp.com/integrations/openapi). La revendication tient, l'adresse a changé |
 
 ### Vérifié le 01/09/2026, source à l'appui
 
@@ -663,8 +716,22 @@ datamodel-code-generator, dont seule la documentation a été lue ; Morest ; Ale
 | *The Verification Horizon: No Silver Bullet for Coding Agent Rewards*, [arXiv 2606.26300](https://arxiv.org/abs/2606.26300), 24/06/2026 | Titre, 13 auteurs, résumé. « *verification must co-evolve with the generator* » ; aucune fonction de récompense fixe ne reste efficace. Fonde `VER-11` |
 | *Before the Model Learns the Bug: Fuzzing RLVR Verifiers*, J. Ray, [arXiv 2606.01066](https://arxiv.org/abs/2606.01066), 31/05/2026 | Titre, auteur, date, méthode : fuzzer le vérificateur avant que le modèle n'en apprenne le défaut. Chiffres non lus |
 | *InfiniteWeb: Scalable Web Environment Synthesis for GUI Agent Training*, [arXiv 2601.04126](https://arxiv.org/abs/2601.04126), ACL 2026 | Spécification unifiée puis développement piloté par les tests ; évaluateurs vérifiables. Même patron que `infer/surface` -> `build/scaffold`, **sans oracle de fidélité** |
-| Olausson et al., *Is Self-Repair a Silver Bullet for Code Generation?*, ICLR 2024, [arXiv 2306.09896](https://arxiv.org/pdf/2306.09896) | Conclusions : gains modestes ou nuls avec un retour auto-produit, « substantially larger » avec un retour de meilleure qualité ; à petit budget l'échantillonnage i.i.d. fait parfois aussi bien |
-| Playwright, `boxes` de `ariaSnapshot` | Documenté « since v1.60 » (Context7, `docs/src/api/class-page.md`). **Bonus non exploité dans ce document** : `ariaSnapshotJSON` rend l'arbre en JSON avec `box` comme propriété, ce qui évite d'analyser le YAML `[box=…]` |
+| Olausson et al., *Is Self-Repair a Silver Bullet for Code Generation?*, ICLR 2024, [arXiv 2306.09896](https://arxiv.org/pdf/2306.09896) | Résumé : « *performance gains are often modest […] and are sometimes not present at all* » ; « *substantially larger performance gains* » avec un retour de meilleure qualité. Introduction : « *pass rates are higher or equally high with i.i.d. sampling (without repair), especially when the budget is small* » |
+| Hammoudi, Rothermel & Tonella, *Why do Record/Replay Tests of Web Applications Break?*, ICST 2016 — [résumé](https://digitalcommons.unl.edu/computerscidiss/100) et auto-citation des auteurs dans [Hammoudi et al., FSE 2016](https://tsigalko18.github.io/assets/pdf/2016-Hammoudi-FSE.pdf) | « *453 versions of popular web applications for which 1065 individual test breakages were recognized* » ; « *73.62% of them were related to obsolete locators* ». Le PDF ICST lui-même n'a pas pu être ouvert (IEEE) ; les chiffres viennent du résumé et de l'auto-citation. **Les « 300 versions, 722 ruptures » d'une version antérieure étaient faux** |
+| X-PERT, Roy Choudhary, Prasad & Orso, ICSE 2013, [PDF des auteurs](http://shauvik.com/public/pubs/roychoudhary13icse_cr.pdf) | « *X-PERT was able to identify XBIs in the subjects with a fairly high precision (76%) and recall (95%)* » ; table des résultats : TP 98, FP 31 |
+| TOGLL, Hossain & Dwyer, [arXiv 2405.03786](https://arxiv.org/pdf/2405.03786), §C *False Positives* | « *TOGLL exhibited a 7% false positive rate for exception oracles and a 25% rate for assertion oracles* » — contre 81 % et 47 % pour TOGA |
+| Lopez-Paz & Oquab, *Revisiting Classifier Two-Sample Tests*, ICLR 2017, [arXiv 1610.06545](https://arxiv.org/pdf/1610.06545), §3.1 | Sous H0, la statistique suit une Binomiale(n_te, 1/2), approchée par N(1/2, 1/(4 n_te)) ; « *compute a p-value using the null distribution of the C2ST* ». Fonde D8 |
+| Kambhampati et al., *LLMs Can't Plan, But Can Help Planning in LLM-Modulo Frameworks*, ICML 2024, [arXiv 2402.01817](https://arxiv.org/abs/2402.01817) | Résumé : « *auto-regressive LLMs cannot, by themselves, do planning or self-verification* » ; §3.1 : « *soundness guarantees because of the external sound critics* ». Fonde D7 |
+| Böhme, Liyanage & Wüstholz, *Estimating Residual Risk in Greybox Fuzzing*, ESEC/FSE 2021, [PDF de l'auteur](https://mboehme.github.io/paper/FSE21.pdf) | Résumé : « *estimators for blackbox fuzzing systematically and substantially under-estimate the true risk* » ; le biais est adaptatif : « *the probability to discover a specific error actually increases over time* ». Nuance : leurs propres estimateurs surestiment. Fonde la limite du §1 |
+| Jahangirova, Clark, Harman & Tonella, *Test Oracle Assessment and Improvement*, ISSTA 2016, [PDF](http://www0.cs.ucl.ac.uk/staff/D.Clark/pubs/toaai2016.pdf) | « *combines test case generation to reveal false positives and mutation testing to reveal false negatives* ». Fonde D4 |
+| *Can LLM Agents Infer World Models? Evidence from Agentic Automata Learning*, [arXiv 2606.16576](https://arxiv.org/abs/2606.16576), 15/06/2026 | Titre, auteurs, date. Le texte intégral n'a pas été lu |
+| *Understanding Automated Web GUI Testing: An Empirical Study Across Exploration Strategies and State Abstractions*, [arXiv 2606.16650](https://arxiv.org/abs/2606.16650), 15/06/2026 | Table 3, ligne moyenne : Crawljax 49,12 %, FragGen 50,43 %, WebExplor 52,45 %, WebRLED 57,60 %, GPTWeb 49,39 %. RQ4 : « *WebExplor triggers the largest number of unique failures (33), whereas GPTWeb triggers the fewest (24)* » |
+| Playwright — [notes de version](https://playwright.dev/python/docs/release-notes), [`class-locator`](https://playwright.dev/python/docs/api/class-locator), [`docs/next/class-page`](https://playwright.dev/docs/next/api/class-page) | `route_web_socket()` : « *New methods page.route_web_socket() and browser_context.route_web_socket()* » en 1.48. `aria_snapshot` « Added in: v1.49 » ; option `boxes` « Added in: v1.60 » ; option `mode` « Added in: v1.59 — When set to "ai" ». **`ariaSnapshotJSON` : « Added in: v1.63 », `langs: js`, absent de l'API Python** ; version courante 1.62 |
+| libfaketime — [README](https://raw.githubusercontent.com/wolfcw/libfaketime/master/README), [NEWS](https://raw.githubusercontent.com/wolfcw/libfaketime/master/NEWS) | « *When compiled with the CFLAG FAKE_RANDOM set, libfaketime will intercept calls to getrandom() […] activated by setting the environment variable FAKERANDOM_SEED* », depuis 0.9.8 ; « *currently supported on Linux only* » ; version courante v0.9.13 (août 2026) |
+| Web Page Replay, [`deterministic.js`](https://raw.githubusercontent.com/catapult-project/catapult/master/web_page_replay_go/deterministic.js) | `random_seed = 0.462`, `+= 0.1` tous les 25 appels ; `Date` : `time_seed += 50` tous les 25 constructions, graine injectée par le serveur |
+| Greenmask, [moteurs de transformation](https://docs.greenmask.io/latest/built_in_transformers/transformation_engines/) | « *The hash engine is designed to generate deterministic data. It uses the SHA-3 algorithm* » ; sel par `GREENMASK_GLOBAL_SALT` |
+| PostgreSQL 18, [`CREATE DATABASE`](https://www.postgresql.org/docs/18/sql-createdatabase.html) et [`file_copy_method`](https://www.postgresql.org/docs/18/runtime-config-resource.html) | `file_copy_method` est un paramètre serveur, pas une option de `CREATE DATABASE` : « *The FILE_COPY strategy is affected by the file_copy_method setting* ». Passage cité au §10.5 |
+| Mattermost — [`api/v4/source/introduction.yaml`](https://github.com/mattermost/mattermost/tree/master/api), [prérequis](https://docs.mattermost.com/deployment-guide/software-hardware-requirements.html), [dépréciations](https://docs.mattermost.com/product-overview/deprecated-features.html), [`LICENSE.txt`](https://github.com/mattermost/mattermost/blob/master/LICENSE.txt), [`model/utils.go`](https://github.com/mattermost/mattermost/blob/master/server/public/model/utils.go), [`mattermost/docker`](https://github.com/mattermost/docker) | `openapi: 3.0.0`, base `/api/v4` ; « *PostgreSQL 14.0+* », MySQL retiré en v11.0 ; binaires « *under an MIT LICENSE* », sources sous AGPL v3.0 ou licence commerciale, `server/public/`, `webapp/` et consorts sous Apache-2.0 ; `NewId` : UUID v4 en z-base-32 sans bourrage, « *26 characters long* » ; compose officiel épinglé par **étiquette** (`MATTERMOST_IMAGE_TAG=11.7.0`), le *digest* reste à relever nous-mêmes. Porte le §3.1 de `docs/plan.md`, sauf « 5 tables sur 95 », non vérifié |
 | datamodel-code-generator | Types de sortie documentés : `pydantic_v2.BaseModel`, `dataclasses.dataclass`, `typing.TypedDict`, `msgspec.Struct`. **Pas de SQLModel** (§11) |
 | [StrictDoc](https://github.com/strictdoc-project/strictdoc) · [OpenFastTrace](https://github.com/itsallcode/openfasttrace) | Apache-2.0, Python, actif / GPL-3.0, Java 17, lit Markdown et code source (§11) |
 | [Keploy](https://keploy.io/docs/keploy-explained/introduction/) · [APIClarity](https://github.com/openclarity/apiclarity) | Capture au niveau syscall avec détection de champs bruités / reconstruction OpenAPI et *spec diff*, Apache-2.0, Kubernetes requis (§12) |
@@ -673,26 +740,19 @@ datamodel-code-generator, dont seule la documentation a été lue ; Morest ; Ale
 
 | Référence | Vérifié | Non vérifié |
 |---|---|---|
-| X-PERT, Roy Choudhary, Prasad & Orso, ICSE 2013, p. 702-711 | Existence, auteurs, objet (détection d'incompatibilités inter-navigateurs) | **Les 76 % de précision et 95 % de rappel** cités en D5 |
-| Hammoudi, Rothermel & Tonella, *Why do Record/Replay Tests of Web Applications Break?*, ICST 2016 | **300 versions, 722 ruptures**, et la cause dominante « the information used to locate page elements » | **La part de plus de 73 %** citée en D1 |
-| TOGLL, Hossain & Dwyer, [arXiv 2405.03786](https://arxiv.org/abs/2405.03786) | Existence, auteurs, objet | **Les 7 % et 25 % de faux positifs** cités en D7 |
 | Agentless | Le résultat — pipeline étagé supérieur à beaucoup d'agents pour un coût inférieur d'un ordre de grandeur — lu dans une revue de littérature, **pas dans le papier** | Les chiffres exacts |
 
 ### Non vérifié — cité de seconde main, à lire avant d'en tirer une décision
 
 McKeeman, *Differential Testing for Software*, DTJ 1998 · Chow, W-method, TSE 1978 ·
-Böhme et al., *Estimating Residual Risk*, FSE 2021 · Angluin, L*, 1987 · Jahangirova et al.,
-ISSTA 2016 · Just et al., FSE 2014 · SandPrint, RAID 2016 · Lopez-Paz & Oquab, *Revisiting
-Classifier Two-Sample Tests*, ICLR 2017 · Kambhampati et al., ICML 2024 · *Can LLM Agents
-Infer World Models?*, arXiv 2606.16576 · *Understanding Automated Web GUI Testing*,
-arXiv 2606.16650 · *Do LLMs Generate Useful Test Oracles?*, ASE 2025 · LLM4Decompile et
-Decompile-Bench, NeurIPS 2025 · ProtocolGPT, IWQoS 2025 · *Active inference of protocol state
-machines*, FITEE 2025 · Design2Code, arXiv 2403.03163 · REAL, arXiv 2504.11543 · Elle,
-VLDB 2021 · RFC 8785 (JCS).
+Angluin, L*, 1987 · Just et al., FSE 2014 · SandPrint, RAID 2016 · *Do LLMs Generate Useful
+Test Oracles?*, ASE 2025 · LLM4Decompile et Decompile-Bench, NeurIPS 2025 · ProtocolGPT,
+IWQoS 2025 · *Active inference of protocol state machines*, FITEE 2025 · Design2Code,
+arXiv 2403.03163 · REAL, arXiv 2504.11543 · Elle, VLDB 2021 · RFC 8785 (JCS).
 
-Trois d'entre elles portent une décision entière et sont donc les premières à lire :
-**Lopez-Paz & Oquab** fonde D8, **Kambhampati** fonde D7, **Böhme** fonde la limite de
-couverture du §1.
+Trois d'entre elles portent une part d'une décision et sont donc les premières à lire :
+**Just et al.** pour la corrélation mutants-fautes réelles de D4, **SandPrint** pour
+l'application de D8 à un bac à sable, **McKeeman** pour l'oracle négatif du §1.
 
 ### Affirmations non vérifiées — à ne pas promouvoir en fait
 
@@ -708,17 +768,9 @@ couverture du §1.
   validation** — c'est le vide que `judge/` occupe, et VeriEnv, vérifié plus haut, est dans
   le même cas. La formulation « aucun protocole » vient d'une lecture de résumé, pas du
   texte intégral.
-- `libfaketime` intercepterait `getrandom()` par graine en LD_PRELOAD (porte `RUN-04` et
-  `NF-05`) : sa fraîcheur est mesurée, ses capacités ne le sont pas.
-- Web Page Replay ferait avancer `Date` de 50 ms toutes les 25 constructions — fondement
-  unique de D3, et l'outil n'a pas été ouvert.
-- `route_web_socket()` « depuis la 1.48 » (`CAP-10`) : seul `boxes` « since v1.60 » a été
-  vérifié dans la documentation Playwright. Or `docs/plan.md` §6 fait de ces **deux**
-  versions un motif de ne rien réutiliser.
 - Les seuils par défaut pixelmatch 0,1 / Playwright 0,2 / Chromatic 0,063, et le comportement
   d'`autojunk` de `difflib` au-delà de 1 % d'une séquence de 200.
-- Greenmask, moteur `hash` « déterministe à paramétrage identique » (porte `GEN-05`, `NF-05`).
-- **Tout le §3.1 de `docs/plan.md`** : l'API `/api/v4` documentée en OpenAPI, PostgreSQL, le
-  dépôt source disponible, les « 5 tables sur 95 », les identifiants de 26 caractères, la
-  licence. La cible sur laquelle repose l'intégralité du lot 1 n'a aucune entrée ici, et le
-  plan n'a pas de mécanisme de statut. C'est à vérifier au premier contact avec la cible.
+- Les « 5 tables sur 95 » du §3.1 de `docs/plan.md` : le reste du paragraphe est vérifié
+  ci-dessus, ce décompte-là attend le premier contact avec le schéma.
+- Le premier chiffre du §7 — 57,60 % — est celui de WebRLED, dont ni le dépôt ni la
+  fraîcheur n'ont été regardés.

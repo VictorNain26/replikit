@@ -79,14 +79,12 @@ the wrong reason is the worst kind, and once frozen it is invisible.
 Seven packages under the repository root, one target directory. `docs/architecture.md` §4
 says which is which; do not copy that list here.
 
-- **A block is a function `artefacts -> artefacts`, and no block calls another.** Caching,
-  resume, the offline campaign and reproducibility follow from that alone — they are not
-  built, they are consequences. A block that imports another block is the defect.
-- **Blocks that propose may call a model. Blocks that pronounce may not.** No LLM client
-  import under `judge/`. It is grep-checkable on purpose, so grep before you commit.
-- **Nothing under the seven packages may know a target.** Everything target-specific lives
-  in `targets/<target>/`. A conditional on a target name inside a block is the same defect
-  wearing a different hat.
+- **P1: no block imports another.** `tests/spec/` greps for it and reads the rule strictly —
+  no import between modules of the seven packages, same package included. Grep before you
+  commit.
+- **P3: no LLM client import under `judge/`.** Same grep, same moment.
+- **§4: nothing under the seven packages names a target.** Target-specific material lives in
+  `targets/<target>/`; a conditional on a target name inside a block is the same defect.
 - **Before writing a new block, read `docs/architecture.md` §5.** Three blocks are reused
   several times each; the most common way to add unnecessary code here is to rewrite one of
   them under a new name.

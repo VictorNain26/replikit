@@ -267,13 +267,16 @@ une extension, marquée `o`.
 | `NF-08` | « *scale our capacity by shipping multiple environments in parallel* » |
 | `ACC-10` | « *tight loop with Curriculum Engineers to ensure your clones are technically robust, faithful to the original system, and ready to be trained against immediately* » |
 
-**`VER-11` ne se rattache à aucune phrase de l'offre, et n'est pourtant pas une extension.**
-Le §3 admet au socle ce qui est « techniquement indispensable à une exigence qui l'est ».
-`ACC-01` — zéro écart ouvert — ne signifie rien sans le taux de détection de l'oracle qui a
-produit ce zéro : c'est ce qu'établit `docs/architecture.md` D4, et ce que confirme *The
+**Le rattachement se fait par famille, pas par exigence.** À l'intérieur d'une famille
+rattachée, une exigence est socle si elle répond à la phrase, ou si elle est « techniquement
+indispensable à une exigence qui l'est » (§3) : `CAP-03`, `CAP-05`, `CAP-09` ou `RUN-04`
+n'ont pas de phrase propre et tiennent par ce second motif. `VER-11` est signalée à part
+parce qu'elle n'est pas née de la lecture de l'offre : elle a été ajoutée après coup, par la
+décision D4 de `docs/architecture.md`, et c'est la seule exigence de ce document dans ce cas.
+Elle tient au socle par indispensabilité : `ACC-01` — zéro écart ouvert — ne signifie rien
+sans le taux de détection de l'oracle qui a produit ce zéro, ce que confirme *The
 Verification Horizon* (arXiv 2606.26300), pour qui « *verification must co-evolve with the
-generator* ». `VER-11` est socle par indispensabilité, pas par filiation, et c'est la seule
-exigence de ce document dans ce cas.
+generator* ».
 
 **Seuils non sourcés.** Six chiffres de ce document ne viennent pas de l'offre et sont des
 propositions à confirmer par la mesure, pas des engagements repris : les **10 jours-homme**

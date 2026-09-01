@@ -23,7 +23,7 @@ script that assertion would be unverifiable — which the rules below forbid. It
 directions and ships with a self-test that mutates the plan to confirm the check still bites.
 
 ```bash
-python tools/check_plan_coverage.py              # 64/64 requirements, 50/50 blocks, exit 0
+python tools/check_plan_coverage.py              # every requirement and block carried, exit 0
 python tools/check_plan_coverage.py --self-test  # drops an assignment, expects exit 1
 ```
 
@@ -50,9 +50,8 @@ These are why the project exists. Everything else is negotiable.
    negotiated** — including when it is ours: `docs/plan.md` §7 records one of our own
    acceptance criteria as failing rather than declaring it out of scope.
 2. **No field may be neutralised in a comparison unless an A/A run has shown it varies.**
-   The counter-example is documented in `docs/architecture.md` D2: an implementation that
-   aliased an equality operator onto a substring search and used an undeclared 0.78
-   similarity threshold, neither of them measured.
+   `docs/architecture.md` D2 records the shape the violation takes, and the counter-example
+   that motivated the rule.
 
 ## The shape of the thing
 
