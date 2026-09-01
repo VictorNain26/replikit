@@ -19,8 +19,9 @@ the only place that number lives. That is the honest state of a project that is 
 
 The one script here, `tools/check_plan_coverage.py`, exists because the plan asserts that
 every blocking requirement and every architectural block is assigned to a lot. Without the
-script that assertion would be unverifiable — which the rules below forbid. It checks both
-directions and ships with a self-test that mutates the plan to confirm the check still bites.
+script that assertion would be unverifiable — which the rules below forbid. It checks every
+count and mapping the documents claim, and ships with a self-test that mutates them to
+confirm the check still bites.
 
 ```bash
 python tools/check_plan_coverage.py              # every requirement and block carried, exit 0
