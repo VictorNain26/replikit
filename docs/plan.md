@@ -101,6 +101,12 @@ et compter les endpoints exercés. Si le nombre varie, le dénominateur de `VER-
 lui, et « 100 % de couverture » ne veut rien dire tant que cette variation n'est pas
 expliquée. Un périmètre arrêté est un périmètre dont le décompte est stable.
 
+*La cible est épinglée avant la première capture.* `CAP-07` exige que la trace porte « la
+version de la cible observée » : une image Docker par *digest*, pas par étiquette, et la
+configuration générée au premier démarrage figée et versionnée. Sans cela, le run A/A compare
+deux exécutions dont rien ne garantit qu'elles ont observé la même cible, et le plancher de
+bruit qu'il établit ne veut rien dire.
+
 *Risques connus* : identifiants aléatoires de 26 caractères et horodatages en epoch ms
 (traités par D1) ; licence AGPL-3.0 ou commerciale et **marque protégée — toute démonstration
 publique devra rebrander** ; configuration générée au premier démarrage, à figer et versionner.
@@ -129,8 +135,9 @@ pas des engagements. Ce dépôt part vide : **rien n'est fait.**
 Un seul écran — la connexion — parcouru de bout en bout, et **le clone est écrit par
 l'agent**, pas à la main.
 
-*Blocs livrés* : `observe/drive`, `observe/store`, `infer/surface`, `infer/entities`,
-`build/scaffold`, `orchestrate/loop`, `judge/replay`, `judge/diff`, `judge/mutate`.
+*Blocs livrés* : `observe/drive`, `observe/normalise`, `observe/store`, `infer/surface`,
+`infer/entities`, `build/scaffold`, `orchestrate/loop`, `judge/replay`, `judge/diff`,
+`judge/mutate`.
 
 `infer/entities` est ici et non plus tard : `GEN-01` demande un schéma SQL, et un schéma SQL
 ne se dérive pas d'un OpenAPI sans passer par les entités.
@@ -302,7 +309,7 @@ déclarer un clone livrable avant, puisque le §12 du cahier conditionne les onz
 
 | Lot | Commande | Blocs livrés | Exigences bloquantes portées |
 |---|---|---|---|
-| **lot 1 — vertical agentique** | `make lot1` | `observe/drive` `observe/store` `infer/surface` `infer/entities` `build/scaffold` `orchestrate/loop` `judge/replay` `judge/diff` `judge/mutate` | `CAP-01`, `CAP-02`, `INF-01`, `GEN-01`, `GEN-02`, `VER-01`, `VER-11` |
+| **lot 1 — vertical agentique** | `make lot1` | `observe/drive` `observe/normalise` `observe/store` `infer/surface` `infer/entities` `build/scaffold` `orchestrate/loop` `judge/replay` `judge/diff` `judge/mutate` | `CAP-01`, `CAP-02`, `INF-01`, `GEN-01`, `GEN-02`, `VER-01`, `VER-11` |
 | **lot 2 — oracle opposable** | `make lot2` | `observe/redact` `judge/policy` `judge/screen` | `CAP-03`, `VER-02`, `VER-06`, `VER-07`, `VER-10`, `NF-06` |
 | **lot 3 — deuxième cible** | `make lot3` | `observe/budget` `observe/ingest` `infer/provenance` | `CAP-05`, `CAP-08`, `CAP-09`, `INF-02`, `INF-03`, `INF-04` |
 | **lot 4 — inférence et boucle** | `make lot4` | `infer/behavior` `infer/merge` `infer/rank` `infer/deps` `build/implement` `build/preserve` `build/seed` `run/determinism` `orchestrate/schema` `orchestrate/trace` `orchestrate/budget` `orchestrate/parallel` `orchestrate/evalset` | `INF-05`, `GEN-03`, `GEN-04`, `GEN-05`, `GEN-06`, `GEN-07`, `GEN-08`, `GEN-11`, `LLM-01`, `LLM-02`, `LLM-03`, `NF-05` |

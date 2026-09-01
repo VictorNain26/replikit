@@ -124,7 +124,13 @@ republié à chaque campagne, et **le jeu de fautes n'est jamais exposé au gén
 générateur qui voit les fautes semées apprend les fautes. *Before the Model Learns the Bug :
 Fuzzing RLVR Verifiers* (arXiv 2606.01066) construit sa méthode sur exactement ce risque.
 
-*Mise en œuvre* : `diff(cible, mutate(cible))` — encore un appel du même bloc.
+*Sur quoi porte la faute* : sur la **trace figée**, jamais sur la cible.
+`docs/cahier-des-charges.md` §9.1 pose que « l'oracle principal est un corpus de traces
+figées » et D6 interdit qu'un privilège sur la cible porte un verdict — muter la cible
+supposerait les deux. Une version antérieure de ce document écrivait
+`diff(cible, mutate(cible))`, ce qui était impraticable sur une cible tierce.
+
+*Mise en œuvre* : `diff(trace, mutate(trace))` — encore un appel du même bloc.
 
 ### D5 — Oracle d'écran structurel, pas pixel
 
@@ -249,7 +255,7 @@ La modularité utile n'est pas dans les interfaces, elle est dans les blocs qui 
 | Appel | Ce qu'il donne | Exigence |
 |---|---|---|
 | `diff(cible, cible)` | le plancher de bruit, dont la politique est **dérivée** | `CAP-02`, `VER-02`, D2 |
-| `diff(cible, mutate(cible))` | le taux de détection de l'oracle | D4, `VER-07` |
+| `diff(trace, mutate(trace))` | le taux de détection de l'oracle, sur le corpus figé | D4, `VER-07`, `VER-11` |
 | `diff(cible, clone)` | le verdict | `VER-01` |
 | `diff(état après UI, état après API)` | la parité de surface | `API-06` |
 | `diff(origine JSON, migré SQL)` | la migration vérifiée | `GEN-12` |
@@ -257,8 +263,25 @@ La modularité utile n'est pas dans les interfaces, elle est dans les blocs qui 
 Deux des huit décisions cessent d'être des règles de discipline pour devenir des appels
 de fonction.
 
-**`observe/drive` s'applique trois fois.** Capturer sur la cible, rejouer sur le clone,
-et faire agir un second acteur (`RUN-11`) : le même bloc, pointé ailleurs.
+**`observe/drive` s'applique trois fois.** Capturer sur la cible (`CAP-01`), rejouer sur la
+cible pour le run A/A (`CAP-02`), et faire agir un second acteur (`RUN-11`) : le même bloc,
+pointé ailleurs. **Il ne rejoue jamais sur le clone** — c'est `judge/replay`.
+
+La séparation vient du cahier, pas d'un goût pour la symétrie. `CAP-02` est une exigence de
+capture, elle rejoue *sur la cible* ; `VER-01` est une exigence de vérification, elle rejoue
+*sur cible et clone*. Et le §9.1 tranche le régime de chacune : « l'oracle principal est un
+corpus de traces figées ; le rejeu réel est réservé à la validation et à la détection de
+dérive ». Donc `observe/drive` pilote du vivant sous budget `CAP-05`, `judge/replay` rejoue
+du corpus figé et ne touche jamais la cible. Un bloc qui ferait les deux rendrait `NF-06`
+inatteignable, puisque la campagne doit tourner cible éteinte.
+
+**`observe/normalise` porte la liaison symbolique de D1.** Le cahier §4.1 nomme la
+normalisation parmi les fonctions de capture — « conversion des captures hétérogènes en un
+format de trace unique, seul contrat consommé par l'inférence et la vérification ». Le
+dictionnaire valeur -> variable de D1 est ce qui rend ce format unique : sans lui, deux
+captures du même parcours n'ont pas le même contenu, donc pas le même identifiant, et le
+cache promis par P1 ne fonctionne pas. C'est une fonction de capture, elle vit sous
+`observe/`.
 
 **`infer/surface` alimente quatre consommateurs.** L'OpenAPI inféré sert à générer le
 squelette du clone, les descripteurs d'outils, les cas limites et les séquences
@@ -337,8 +360,8 @@ substitut tiers trouvé.
 
 | Réf | Bloc | Outil / fondement |
 |---|---|---|
-| CAP-01 | `observe/drive` | Playwright >= 1.60 ; scénario en intentions figées (§6) |
-| CAP-02 | `judge/diff` | l'appel A/A ; le non-déterminisme est un produit du diff, pas une capture |
+| CAP-01 | `observe/drive`, `observe/normalise` | Playwright >= 1.60 ; scénario en intentions figées (§6) ; normalisation vers le format de trace unique (§4.1 du cahier) |
+| CAP-02 | `observe/drive`, `judge/diff` | `observe/drive` rejoue **sur la cible**, `judge/diff` caractérise ce qui varie : le non-déterminisme est un produit du diff, pas une déclaration |
 | CAP-03 | `observe/redact` | expurgation **liante** (placeholders betamax) ; `detect-secrets` en garde-fou |
 | CAP-04 | `observe/explore` | parcours : Crawlee (Playwright, actif) ; le graphe d'états de Crawljax reste la référence de méthode mais l'outil est **dormant depuis la 5.2.3, 01/06/2023** ; agent en complément (arXiv 2606.16650) |
 | CAP-05 | `observe/budget` | jeton de débit, arrêt d'urgence — **maison**, ~60 lignes |
@@ -346,7 +369,7 @@ substitut tiers trouvé.
 | CAP-07 | `observe/store` | HAR adressé par contenu, estampillé version de cible ; `syrupy` en CI |
 | CAP-08 | `observe/ingest` | dépôt source -> migrations et schéma ; alimente `infer`, jamais `judge` (D6) |
 | CAP-09 | `observe/budget` | détection anti-robot, arrêt, état partiel préservé, alerte opérateur |
-| CAP-10 | `observe/drive` | `page.route_web_socket()` (Playwright 1.48+) ; trames en extension HAR |
+| CAP-10 | `observe/drive`, `observe/normalise` | `page.route_web_socket()` (Playwright 1.48+) ; trames portées par l'extension HAR et ramenées au format de trace unique |
 | CAP-11 | `observe/drive` | N contextes navigateur, horloge commune `run/determinism` (§8) |
 
 ### Inférence (INF)
@@ -518,7 +541,8 @@ demande mieux qu'un appariement de sous-arbres. À reprendre quand le besoin ser
 pas avant, et sans écrire de Zhang-Shasha en attendant.
 
 Restent **maison**, faute de substitut trouvé : la liaison symbolique de D1 et son
-dictionnaire valeur -> variable stable entre deux captures ; la canonicalisation JCS ; le
+dictionnaire valeur -> variable stable entre deux captures, qui vivent dans
+`observe/normalise` ; la canonicalisation JCS ; le
 compilateur de la politique d'équivalence vers les paramètres DeepDiff (~50 lignes) ; la
 géométrie relative entre voisins, les `box` de Playwright étant absolus ; le jeton de débit
 de `CAP-05` ; le modèle séquentiel par cible qu'exigent Porcupine et Elle.
