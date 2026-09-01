@@ -129,10 +129,29 @@ La troisième cible est donc au lot 6, et c'est elle qui clôt le chronomètre.
 
 ## 4. Lots
 
-Chaque lot a un critère de sortie **falsifiable**. Les durées sont des estimations de charge,
-pas des engagements. Ce dépôt part vide : **rien n'est fait.**
+Chaque lot a un critère de sortie **falsifiable**. Ce dépôt part vide : **rien n'est fait.**
 
-### Lot 1 — Le vertical agentique (≈5 j)
+**Les lots ne sont pas chiffrés en jours.** Le code est écrit par des agents, et une charge
+d'écriture ne borne plus rien. Ce qui borne un lot, c'est ce qui ne se parallélise pas, et
+chaque lot en porte le relevé sous *Charge* :
+
+- les **décisions humaines bloquantes**, points de synchronisation que personne d'autre ne
+  prend — périmètre, ratification d'une décision de spec, choix d'une cible ;
+- les **exécutions à durée machine** que le critère de sortie exige — cycles de reset,
+  environnements simultanés, campagne jusqu'à son critère d'arrêt, rejeux sous le budget
+  `CAP-05`, qui est une borne de calendrier par construction ;
+- le **plafond de jetons**, fixé avant le lancement du lot et publié avec ses chiffres de
+  sortie — la pratique de `LLM-04` dès le lot 1, sans attendre le bloc qui la porte ;
+- le **nombre d'itérations de réparation**, que le lot 1 publie et que chaque lot suivant
+  compare au précédent.
+
+Tant que l'oracle n'existe pas — lots 1 et 2 —, le seul critique des agents qui l'écrivent
+est la spécification gelée et son relecteur humain. Le débit de ces deux lots est donc celui
+de la relecture, quel que soit le nombre d'agents. Une version antérieure de ce plan
+libellait les lots en jours-homme, ≈28 pour les cinq premiers ; ces chiffres mesuraient un
+auteur qui n'est plus celui du code.
+
+### Lot 1 — Le vertical agentique
 
 Un seul écran — la connexion — parcouru de bout en bout, et **le clone est écrit par
 l'agent**, pas à la main.
@@ -158,6 +177,12 @@ entre le témoin et le clone agentique est l'apport mesuré de l'agent.
 `datamodel-code-generator` (`--output-model-type pydantic_v2.BaseModel`) → **schéma SQL :
 aucun générateur, l'agent écrit** → Alembic. Ce maillon est inscrit au §11 de l'architecture.
 
+*Charge* — décisions bloquantes : les entrées de la spec (`tests/spec/README.md`, fixtures
+contre cible vivante) et la ratification des décisions n°1 à 4 de ce même fichier, toutes
+avant la première ligne de bloc ; `scope.yaml` arrêté ; le *digest* de l'image épinglé.
+Exécutions : deux captures A/A, puis autant de rejeux sur le clone que d'itérations de
+réparation. Plafond de jetons fixé avant lancement. Mesure : les itérations elles-mêmes.
+
 *Commande* : `make lot1` — elle sort en erreur tant que le critère n'est pas tenu.
 
 *Critère de sortie* : **trois chiffres**, publiés ensemble ou pas du tout.
@@ -170,7 +195,7 @@ aucun générateur, l'agent écrit** → Alembic. Ce maillon est inscrit au §11
 *Ce que ce lot ne prétend pas* : le premier chiffre ne vaut que ce que vaut le deuxième, et
 le deuxième n'est pas encore durci — c'est le lot 2.
 
-### Lot 2 — L'oracle opposable (≈4 j)
+### Lot 2 — L'oracle opposable
 
 Durcir ce que le lot 1 a produit à la va-vite, en le dimensionnant sur des écarts réels.
 
@@ -188,6 +213,12 @@ Durcir ce que le lot 1 a produit à la va-vite, en le dimensionnant sur des éca
   politique. Le test qui l'établit : modifier une entrée du fichier doit changer le verdict.
 - `judge/screen` — comparaison d'écran par instantané ARIA, gabarit produit depuis la cible.
 
+*Charge* — décisions bloquantes : le format de la politique et du relevé A/A (décision n°5
+de la spec) et le lieu du jeu de fautes (`docs/architecture.md` §10.8). Exécutions : une
+campagne complète en CI cible éteinte par candidat de comparateur, et une par faute semée.
+Plafond de jetons : celui de l'écriture des blocs seulement — aucune boucle de réparation ne
+tourne dans ce lot, le clone n'y change pas.
+
 *Commande* : `make lot2` — elle sort en erreur tant que le critère n'est pas tenu.
 
 *Critère de sortie* : le taux de détection vaut **100 %** ; la campagne tourne en CI cible
@@ -198,7 +229,7 @@ fautes semées n'est pas accessible au générateur** (`VER-11`).
 *Échec du lot* : un taux inférieur à 100 % sur des fautes aussi grossières signifie que
 l'oracle est une passoire, et que le comparateur est à reprendre avant tout élargissement.
 
-### Lot 3 — La deuxième cible (≈5 j)
+### Lot 3 — La deuxième cible
 
 **Le lot qui décide si replikit est un outil ou un banc.** Il vient avant le runtime, parce
 qu'un runtime construit pour une seule cible est un runtime pour une seule cible.
@@ -211,6 +242,12 @@ qu'un runtime construit pour une seule cible est un runtime pour une seule cible
 le schéma depuis la source, et une cible propriétaire, dont on ne dérive rien, qui donne à
 l'exigence son sens. Elle alimente `infer`, jamais `judge` (D6).
 
+*Charge* — décisions bloquantes : le choix de la cible 2 (§3.2), la forme du run A/A sans
+reset (`docs/architecture.md` §10.6) avant toute politique, et le budget `CAP-05` de la
+cible, qui fixe le nombre de rejeux par jour. Exécutions : c'est ce budget qui borne le lot,
+pas les agents — chaque rejeu A/A, chaque capture et chaque rejeu de dérive le consomment.
+Ce lot est le premier dont la durée est dictée par la cible.
+
 *Commande* : `make lot3` — elle sort en erreur tant que le critère n'est pas tenu.
 
 *Critère de sortie* : la même chaîne, **sans modification propre à la cible sous les sept
@@ -221,7 +258,7 @@ sans reset et sous budget de requêtes ; et **le nombre de lignes ajoutées sous
 *Échec du lot* : toute ligne ajoutée sous `observe/`, `infer/`, `build/` ou `judge/` pour
 faire passer la cible 2 est un aveu que le bloc connaissait la cible 1.
 
-### Lot 4 — L'inférence et la boucle industrialisées (≈6 j)
+### Lot 4 — L'inférence et la boucle industrialisées
 
 *Blocs livrés* : `infer/behavior`, `infer/merge`, `infer/rank`, `infer/deps`,
 `build/implement`, `build/preserve`, `build/seed`, `run/determinism`, `orchestrate/schema`,
@@ -239,12 +276,18 @@ chiffres de ce lot comparables d'une itération à l'autre.
 jeu d'évaluation — et rien de plus. Le pipeline reste étagé : pas de cadriciel d'agents
 (`docs/architecture.md` §12).
 
+*Charge* — décisions bloquantes : aucune nouvelle ; les amendements humains de `INF-07`
+sont un flux, pas un point de synchronisation. Exécutions : L* actif sous budget `CAP-05`
+sur la cible 2, et les trois chiffres du lot 1 sur les deux cibles. Plafond de jetons : le
+plus élevé du plan, puisque ce lot fait tourner la boucle sur deux cibles ; `LLM-04` en fait
+un bloc, il était une pratique depuis le lot 1.
+
 *Commande* : `make lot4` — elle sort en erreur tant que le critère n'est pas tenu.
 
 *Critère de sortie* : les trois chiffres du lot 1, **sur les deux cibles**, avec le nombre
 d'itérations en baisse ou expliqué.
 
-### Lot 5 — Le runtime et la surface (≈8 j)
+### Lot 5 — Le runtime et la surface
 
 *Blocs livrés* : `run/sandbox`, `run/branch`, `run/admin`, `run/sideeffects`, `run/journal`,
 `run/fleet`, `run/faults`, `serve/parity`, `serve/mcp`, `serve/errors`, `serve/client`,
@@ -267,6 +310,13 @@ coût marginal vaut alors 100 % contre un plafond de 5 %, quel que soit le soin 
 reste. Le partage de blocs de `run/branch` est ce qui la rend atteignable, sous la réserve
 du §10.5 de l'architecture.
 
+*Charge* — décisions bloquantes : le système de fichiers de `run/branch`, choisi avant la
+première mesure puisque le plafond de 5 % n'est une propriété d'aucun outil
+(`docs/architecture.md` §10.5), et le sort des trois extensions. Exécutions : ce lot est
+presque entièrement à durée machine — 100 cycles de reset, 100 environnements simultanés,
+une charge à la volumétrie `NF-02`, une réinitialisation chronométrée au 95e centile. Les
+agents écrivent le banc, le banc prend le temps qu'il prend.
+
 *Commande* : `make lot5` — elle sort en erreur tant que le critère n'est pas tenu.
 
 *Critère de sortie* : un environnement démarre et sert son périmètre **réseau sortant
@@ -275,7 +325,7 @@ réinitialisation chronométrée sous 5 s au 95e centile à la volumétrie `NF-0
 UI↔API **mesurée** par `diff`, pas déclarée ; et le protocole `ACC-05` — 100 cycles, état
 complet comparé — exécuté et consigné.
 
-### Lot 6 — Concurrence, adversarial, acceptation, troisième cible (à cadrer)
+### Lot 6 — Concurrence, adversarial, acceptation, troisième cible
 
 *Blocs livrés* : `observe/explore`, `observe/probe`, `build/realtime`, `build/migrate`,
 `judge/adversary`, `judge/coverage`, `judge/distinguish`, `judge/drift`, `judge/edge`,
@@ -287,6 +337,15 @@ complet comparé — exécuté et consigné.
 Concurrence et temps réel (modèle séquentiel + Porcupine/Elle), exploration adversariale,
 couverture, indiscernabilité mesurée (D8), la **troisième cible**, et `judge/accept` — le
 bloc qui produit les onze critères `ACC` et sans lequel aucun clone n'est livrable.
+
+*Charge* — le lot le plus lourd, et le seul dont chaque forme de charge est présente.
+Décisions bloquantes : la cible 3, le modèle séquentiel écrit à la main pour chaque cible
+collaborative (`docs/architecture.md` §8), la reformulation d'`ACC-08` (D8), l'environnement
+d'origine de `GEN-12`, et le relecteur d'`ACC-10` (§7). Exécutions : la campagne adversariale
+jusqu'à son critère d'arrêt, le rejeu de dérive `VER-09` sous budget `CAP-05` sur trois
+cibles, le C2ST à taille d'échantillon suffisante pour une valeur-p, et le chronomètre
+`NF-01` sur la troisième cible. Un lot « à cadrer » dans une version antérieure : c'est ici
+que se trouvait la moitié du travail que le libellé en jours ne montrait pas.
 
 *Commande* : `make lot6` — elle sort en erreur tant que le critère n'est pas tenu.
 

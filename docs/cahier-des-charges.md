@@ -287,7 +287,7 @@ L'offre dit « vite » et « à l'échelle de l'entreprise » sans les chiffrer.
 **Ce que l'offre demande et que ce document traite comme acquis.** « *You move fast because
 you have built the tooling, the AI scaffolds, and the verification harnesses that let you
 move fast without cutting corners.* » La vitesse n'est donc pas une exigence parmi les
-autres : c'est ce que l'outillage achète. `docs/plan.md` engage ~28 jours ordonnancés, dont le lot 3
+autres : c'est ce que l'outillage achète. `docs/plan.md` ordonnance six lots dont le lot 3
 est déjà la deuxième cible : l'outillage se paie sur les deux premières pour rendre les
 suivantes rapides. Ce pari est la thèse du projet, et `NF-01`
 est ce qui le réfutera ou non.
