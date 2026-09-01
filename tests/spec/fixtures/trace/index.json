@@ -1,0 +1,11 @@
+{
+  "scenario": "connexion",
+  "version_cible": "fixture-1.0",
+  "horodatage": "2026-09-01T10:00:00Z",
+  "fichiers": {
+    "reseau": "reseau.har",
+    "ecrans": "ecrans/",
+    "etat": "etat.json",
+    "evenements": "evenements.jsonl"
+  }
+}

@@ -1,0 +1,3 @@
+neutralisations:
+  - champ: reponse.headers.date
+    motif: en-tête Date, varie entre rejeux

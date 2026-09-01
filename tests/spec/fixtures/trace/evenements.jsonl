@@ -1,0 +1,2 @@
+{"t": 0.512, "canal": "wss://cible.example.test/ws", "type": "hello", "payload": {"user_id": "u_01HZX4K"}}
+{"t": 0.940, "canal": "wss://cible.example.test/ws", "type": "presence", "payload": {"user_id": "u_01HZX4K", "status": "online"}}

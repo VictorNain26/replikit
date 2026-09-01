@@ -1,0 +1,7 @@
+{
+  "scenario": "connexion",
+  "identifiants": ["reponse.body.token"],
+  "horodatages": ["reponse.headers.date"],
+  "ordre": [],
+  "champs_variables": ["reponse.body.token", "reponse.headers.date"]
+}

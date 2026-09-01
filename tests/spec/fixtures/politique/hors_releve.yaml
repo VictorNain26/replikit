@@ -1,0 +1,4 @@
+neutralisations:
+  - champ: reponse.body.user.created_at
+    motif: horodatage
+    releve: releve_aa.json

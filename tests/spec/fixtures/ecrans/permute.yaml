@@ -1,0 +1,5 @@
+- heading "Sign in" [level=1] [box=120,80,400,40]
+- textbox "Email" [box=120,140,400,32]
+- textbox "Password" [box=120,190,400,32]
+- link "Forgot password?" [box=120,244,140,20]
+- button "Sign in" [box=280,240,120,36]
