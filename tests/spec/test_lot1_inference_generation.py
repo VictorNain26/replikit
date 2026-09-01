@@ -13,14 +13,22 @@ def test_la_surface_inferee_est_un_openapi_valide(tmp_path):
     assert openapi["paths"], "un OpenAPI sans chemin ne sert à rien"
 
 
-def test_chaque_entite_porte_types_cles_et_cardinalites(tmp_path):
-    """INF-01 : « types, clés, relations, cardinalités »."""
+def test_chaque_entite_porte_types_cles_relations_et_cardinalites(tmp_path):
+    """INF-01, mot pour mot : « types, clés, relations, cardinalités ».
+
+    Les quatre, pas deux : une entité sans relation ni cardinalité ne permet pas de dériver
+    le schéma relationnel que GEN-01 exige.
+    """
     entities = importe("infer/entities")
     modele = entities.inferer(trace=tmp_path / "trace")
     assert modele.entites, "aucune entité inférée"
     for entite in modele.entites:
         assert entite.champs, f"{entite.nom} n'a aucun champ typé"
+        assert all(c.type for c in entite.champs), f"{entite.nom} a un champ sans type"
         assert entite.cle is not None, f"{entite.nom} n'a pas de clé"
+    assert modele.relations, "aucune relation inférée : INF-01 en exige"
+    for relation in modele.relations:
+        assert relation.cardinalite, f"la relation {relation.nom} n'a pas de cardinalité"
 
 
 def test_la_persistance_est_relationnelle(tmp_path):

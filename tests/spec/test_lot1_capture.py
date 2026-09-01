@@ -1,51 +1,79 @@
 """CAP-01, CAP-02 — la capture, et ce qu'une trace doit porter.
 
-Décision n°2 à ratifier : une trace est un répertoire d'artefacts, pas un fichier. Le HAR
-(P2) n'y suffit pas — D1 exige la liaison de variables, `VER-10` exige les instantanés ARIA,
-`CAP-01` exige actions, réseau, temps réel, DOM et horodatage relatif.
+La source de vérité est `docs/cahier-des-charges.md`. Les familles ci-dessous sont celles de
+son §2, qui définit le mot *Trace* — « enregistrement horodaté d'un parcours : actions,
+requêtes réseau, messages des canaux temps réel, états DOM, réponses ». Son §4.1 ajoute ce
+que l'enregistreur capture en plus : captures d'écran et horodatage relatif.
+
+Décision n°2 à ratifier : une trace est un répertoire d'artefacts produit par
+`observe/normalise`, et non la sortie brute de `observe/drive` — le cahier §4.1 fait de la
+normalisation une fonction de capture à part entière, « seul contrat consommé par
+l'inférence et la vérification ».
 """
 
 from __future__ import annotations
 
 from conftest import importe
 
-FAMILLES = ("actions", "reseau", "temps_reel", "dom", "horodatage_relatif")
+# §2 du cahier, mot pour mot.
+FAMILLES_VOCABULAIRE = ("actions", "requetes_reseau", "messages_temps_reel", "etats_dom", "reponses")
+# §4.1, ce que l'enregistrement de parcours capture en plus.
+FAMILLES_ENREGISTREMENT = ("captures_ecran", "horodatage_relatif")
 
 
-def test_une_trace_porte_les_cinq_familles_d_evenements(tmp_path):
-    """CAP-01 : « actions, requêtes et réponses réseau, messages des canaux temps réel,
-    instantanés DOM avant/après, captures d'écran, horodatage relatif »."""
-    drive = importe("observe/drive")
-    trace = drive.rejouer(scenario=tmp_path / "connexion.yaml", sortie=tmp_path / "trace")
-    manquantes = [f for f in FAMILLES if f not in trace.familles]
+def _trace(tmp_path):
+    drive, normalise = importe("observe/drive"), importe("observe/normalise")
+    brut = drive.capturer(scenario=tmp_path / "connexion.yaml", sortie=tmp_path / "brut")
+    return normalise.trace(brut)
+
+
+def test_une_trace_porte_les_familles_du_vocabulaire(tmp_path):
+    """§2 : ces cinq familles *sont* la définition d'une trace dans ce cahier."""
+    trace = _trace(tmp_path)
+    manquantes = [f for f in FAMILLES_VOCABULAIRE if f not in trace.familles]
     assert not manquantes, f"familles absentes de la trace : {', '.join(manquantes)}"
 
 
-def test_une_trace_lie_chaque_valeur_produite_a_une_variable(tmp_path):
+def test_l_enregistrement_capture_aussi_ecran_et_horodatage_relatif(tmp_path):
+    """§4.1 : « instantanés DOM avant/après, captures d'écran, horodatage relatif »."""
+    trace = _trace(tmp_path)
+    manquantes = [f for f in FAMILLES_ENREGISTREMENT if f not in trace.familles]
+    assert not manquantes, f"non capturé : {', '.join(manquantes)}"
+
+
+def test_la_normalisation_lie_chaque_valeur_produite_a_une_variable(tmp_path):
     """D1 : « chaque valeur produite par le système est liée à une variable symbolique à sa
     première apparition ; toute réapparition doit référencer la même variable »."""
-    drive = importe("observe/drive")
-    trace = drive.rejouer(scenario=tmp_path / "connexion.yaml", sortie=tmp_path / "trace")
-    for valeur, variable in trace.liaisons.items():
-        assert trace.liaisons[valeur] == variable, "une valeur est liée à deux variables"
+    trace = _trace(tmp_path)
     assert trace.liaisons, "aucune valeur produite n'a été liée : D1 n'est pas appliquée"
+    for valeur, variables in trace.liaisons_brutes.items():
+        assert len(set(variables)) == 1, f"la valeur {valeur!r} est liée à {len(set(variables))} variables"
 
 
-def test_deux_captures_du_meme_scenario_donnent_le_meme_identifiant_de_trace(tmp_path):
-    """P1 rencontre D1 : sans liaison symbolique, un HAR plein de valeurs variables donne un
-    identifiant différent à chaque capture, ce qui annule le cache que P1 promet."""
-    drive = importe("observe/drive")
+def test_deux_captures_du_meme_scenario_donnent_le_meme_identifiant(tmp_path):
+    """P1 rencontre D1 : sans liaison symbolique, deux captures du même parcours n'ont pas le
+    même contenu, donc pas le même identifiant, et le cache promis par P1 ne fonctionne pas."""
+    drive, normalise = importe("observe/drive"), importe("observe/normalise")
     scenario = tmp_path / "connexion.yaml"
-    a = drive.rejouer(scenario=scenario, sortie=tmp_path / "a")
-    b = drive.rejouer(scenario=scenario, sortie=tmp_path / "b")
+    a = normalise.trace(drive.capturer(scenario=scenario, sortie=tmp_path / "a"))
+    b = normalise.trace(drive.capturer(scenario=scenario, sortie=tmp_path / "b"))
     assert a.identifiant == b.identifiant
 
 
-def test_le_run_aa_caracterise_ce_qui_varie(tmp_path):
-    """CAP-02 : le non-déterminisme de la cible est un produit du diff, pas une déclaration."""
-    drive, diff = importe("observe/drive"), importe("judge/diff")
+def test_le_run_aa_caracterise_les_trois_axes_nommes_par_cap_02(tmp_path):
+    """CAP-02 : « caractériser ce qui varie d'une exécution à l'autre — identifiants,
+    horodatages, ordre ». Le rejeu A/A se fait **sur la cible** : c'est `observe/drive`."""
+    drive, normalise, diff = importe("observe/drive"), importe("observe/normalise"), importe("judge/diff")
     scenario = tmp_path / "connexion.yaml"
-    a = drive.rejouer(scenario=scenario, sortie=tmp_path / "a")
-    b = drive.rejouer(scenario=scenario, sortie=tmp_path / "b")
-    resultat = diff.comparer(a, b)
-    assert resultat.champs_variables is not None, "un run A/A doit produire la liste des champs variables"
+    a = normalise.trace(drive.rejouer_sur_cible(scenario=scenario, sortie=tmp_path / "a"))
+    b = normalise.trace(drive.rejouer_sur_cible(scenario=scenario, sortie=tmp_path / "b"))
+    releve = diff.comparer(a, b).non_determinisme
+    manquants = [axe for axe in ("identifiants", "horodatages", "ordre") if axe not in releve]
+    assert not manquants, f"axes de non-déterminisme non caractérisés : {', '.join(manquants)}"
+
+
+def test_la_trace_porte_la_version_de_la_cible_observee(tmp_path):
+    """CAP-07 : « versionnées, avec la version de la cible observée ». Sans ça, un run A/A
+    compare deux exécutions dont rien ne garantit qu'elles ont vu la même cible."""
+    trace = _trace(tmp_path)
+    assert trace.version_cible, "la trace ne dit pas quelle version de la cible elle a observée"
