@@ -1,0 +1,325 @@
+# Plan d'exécution
+
+Dans quel ordre construire les blocs de `docs/architecture.md`, et à quel critère
+falsifiable chaque lot s'arrête.
+
+Ce document ne contient ni décision de conception, ni comparatif d'outils, ni limite
+théorique : tout cela vit dans `docs/architecture.md` et n'est pas répété ici. Il définit
+l'espace de noms `lot n` : aucun autre document ne crée ni ne renumérote un lot, il ne peut
+que le citer. Les numéros de section sont des ancres — on ne renumérote jamais.
+
+## 1. Le problème, énoncé précisément
+
+Répliquer un logiciel n'est pas difficile. **Prouver qu'une réplique est indiscernable de
+son original l'est.** C'est un problème d'oracle : décider, de façon reproductible et
+automatisée, que deux systèmes se comportent identiquement pour une même séquence
+d'entrées.
+
+`VER-01` — rejouer une trace sur la cible et sur le clone, puis produire un différentiel —
+est l'exigence dont onze critères d'acceptation dépendent, et l'état de l'art publié
+revendique des répliques haute fidélité sans décrire aucun protocole de validation. Ce n'est
+pas une lecture de notre part : VeriEnv, vérifié dans `docs/architecture.md` §13, clone des
+sites réels en environnements « programmatically verifiable » — vérifiables sur
+l'accomplissement d'une **tâche**, jamais sur la fidélité à l'original.
+
+D'où l'ordre des lots : un générateur que rien ne contredit produit des résultats plausibles
+et faux, à grande échelle. C'est vrai d'un modèle comme d'un humain pressé, et ça ne dépend
+d'aucun précédent particulier.
+
+## 2. L'ordre, et pourquoi celui-là
+
+Deux versions antérieures de ce plan ont été écartées, et les deux motifs se répondent.
+
+**La première construisait l'oracle sur cinq étapes d'outillage avant de le confronter à un
+clone.** Toutes les décisions de conception étaient alors anticipatoires : le banc comparait
+une cible à elle-même, le cas le plus facile.
+
+**La seconde fermait bien la boucle sur un écran, mais avec un clone écrit à la main et une
+deuxième cible renvoyée à un lot « à cadrer ».** Deux défauts qui se tiennent : l'agent
+n'entrait qu'au troisième lot, donc le chiffre qui dit si l'outil généralise — *combien
+d'itérations de réparation avant convergence* — n'arrivait qu'au jour 14 ; et tant que la
+deuxième cible n'a pas de date, « l'oracle marche sur Mattermost » reste l'information
+faible que le §3 décrit lui-même.
+
+**L'ordre retenu corrige les deux. L'agent écrit le clone dès le lot 1, et la deuxième cible
+est le lot 3.** C'est le déplacement de l'agent qui libère la place de la deuxième cible.
+
+Trois raisons, chacune adossée à une source vérifiée dans `docs/architecture.md` §13 :
+
+- **L'agent au lot 1.** Olausson et al. (ICLR 2024) mesurent que l'auto-réparation apporte
+  des gains modestes voire nuls quand le modèle produit son propre retour, et nettement plus
+  grands quand la qualité du retour est relevée. `judge/diff` **est** ce retour de meilleure
+  qualité : la boucle a donc du sens dès qu'il existe, pas plus tard.
+- **L'oracle reste devant.** Ce que le lot 1 gagne en réalisme, il le paie en fiabilité : une
+  liste d'écarts sans taux de détection ne vaut rien (D4), y compris la nôtre. Le lot 1 ne
+  publie donc pas un chiffre mais **trois**, et le troisième est le taux de détection.
+- **La récompense doit co-évoluer.** Dès que `judge/diff` devient le retour d'un agent, il
+  devient sa fonction de récompense, et une récompense fixe se fait optimiser plutôt que
+  satisfaire (*The Verification Horizon*, arXiv 2606.26300). C'est `VER-11`, et c'est
+  pourquoi le jeu de fautes semées n'est jamais exposé au générateur.
+
+## 3. Les cibles
+
+### 3.1 Première cible — Mattermost, l'étalon
+
+**Mattermost**, déployé localement en Docker. SPA sur API REST `/api/v4` documentée en
+OpenAPI, PostgreSQL, dépôt source disponible — donc `CAP-08` exerçable.
+
+*Ce que cette justification vaut.* Les critères qui ont fait gagner Mattermost sont
+exactement ceux qu'une cible propriétaire n'a pas : API documentée, migrations publiques,
+déploiement local, reset par volume, ni anti-robot ni budget de requêtes. « L'oracle
+fonctionne sur Mattermost » est donc une information faible sur « l'oracle fonctionnera ».
+Mattermost est un **étalon**, choisi parce qu'on y voit l'état des deux côtés.
+
+*Ce que le déploiement local change.* `CAP-05` (budget de requêtes) et `CAP-09` (anti-robot)
+ne sont pas **exerçables** sur une cible locale — elles restent bloquantes et de socle, et
+redeviennent actives au lot 3. Une exigence ne tombe pas parce que la cible choisie ne la
+sollicite pas. On obtient en revanche un reset fiable par instantané de volume, qui rend le
+run A/A de D2 gratuit, donc obligatoire.
+
+*Périmètre déclaré*, arrêté et versionné **avant toute campagne**, dans
+`targets/mattermost/scope.yaml` — sans quoi « zéro écart » et « 100 % » s'obtiennent en
+rétrécissant le périmètre (`docs/cahier-des-charges.md` §12) :
+
+| Écran | Entités |
+|---|---|
+| A. Connexion | `users` |
+| B. Sidebar équipes/canaux | `teams`, `channels`, `channelmembers` |
+| C. Canal et envoi de message | `posts` |
+
+Soit **5 tables sur 95**. Hors périmètre au premier tour : recherche, fichiers, réactions,
+fils de discussion. Le temps réel entre au lot 6.
+
+La liste n'est pas produite par la capture : la capture la **vérifie**. Une opération
+observée hors périmètre est un signal à traiter — élargir est une décision datée, en commit,
+jamais un effet de bord d'un run.
+
+**Première mesure du lot 1, avant même le premier diff** : rejouer deux fois le même scénario
+et compter les endpoints exercés. Si le nombre varie, le dénominateur de `VER-05` varie avec
+lui, et « 100 % de couverture » ne veut rien dire tant que cette variation n'est pas
+expliquée. Un périmètre arrêté est un périmètre dont le décompte est stable.
+
+*Risques connus* : identifiants aléatoires de 26 caractères et horodatages en epoch ms
+(traités par D1) ; licence AGPL-3.0 ou commerciale et **marque protégée — toute démonstration
+publique devra rebrander** ; configuration générée au premier démarrage, à figer et versionner.
+
+### 3.2 Deuxième cible — choisie pour ce qu'elle casse
+
+Elle n'est pas choisie pour être facile. Elle doit retirer, une par une, les facilités de
+l'étalon : **pas de code source**, donc `CAP-08` inopérante ; **pas de reset**, donc pas de
+run A/A gratuit ; **budget de requêtes réel et protections anti-robot**, donc `CAP-05` et
+`CAP-09` exerçables ; **identifiants et horodatages de forme différente**, pour éprouver la
+liaison symbolique de D1 sur autre chose que du z-base-32 et de l'epoch-ms.
+
+### 3.3 Troisième cible — la seule qui rende `NF-01` mesurable
+
+`NF-01` exige un délai de bout en bout mesuré **sur trois cibles consécutives**. Deux ne
+suffisent pas : le critère resterait inatteignable, ce qui est le défaut qu'on corrige ici.
+La troisième cible est donc au lot 6, et c'est elle qui clôt le chronomètre.
+
+## 4. Lots
+
+Chaque lot a un critère de sortie **falsifiable**. Les durées sont des estimations de charge,
+pas des engagements. Ce dépôt part vide : **rien n'est fait.**
+
+### Lot 1 — Le vertical agentique (≈5 j)
+
+Un seul écran — la connexion — parcouru de bout en bout, et **le clone est écrit par
+l'agent**, pas à la main.
+
+*Blocs livrés* : `observe/drive`, `observe/store`, `infer/surface`, `build/scaffold`,
+`orchestrate/loop`, `judge/replay`, `judge/diff`, `judge/mutate`.
+
+*Exigences* : `CAP-01`, `CAP-02`, `INF-01`, `GEN-01`, `GEN-02`, `VER-01`, `VER-11`.
+
+Premier test à faire, avant tout le reste : **`mitmproxy2swagger` produit-il un OpenAPI
+assez fidèle pour que Prism serve quelque chose d'utile ?** Une heure. Si non,
+`infer/surface` change de nature et le lot avec.
+
+*Prism ne disparaît pas, il change de rôle.* Il n'est plus le clone : il est le **témoin**,
+l'implémentation à coût nul qui mesure ce que l'OpenAPI inféré porte à lui seul. L'écart
+entre le témoin et le clone agentique est l'apport mesuré de l'agent.
+
+*La chaîne outillée, et son seul maillon nu* : HAR → `mitmproxy2swagger` → OpenAPI →
+`datamodel-code-generator` (`--output-model-type pydantic_v2.BaseModel`) → **schéma SQL :
+aucun générateur, l'agent écrit** → Alembic. Ce maillon est inscrit au §11 de l'architecture.
+
+*Critère de sortie* : **trois chiffres**, publiés ensemble ou pas du tout.
+
+1. La liste d'écarts cible↔clone, reproductible, chaque écart portant la trace qui le produit.
+2. Le taux de détection de l'oracle sur le jeu de fautes semées initial (`VER-11`).
+3. **Le nombre d'itérations de réparation avant convergence** — le seul chiffre qui dise si
+   l'outil généralise, et la raison d'être de ce lot.
+
+*Ce que ce lot ne prétend pas* : le premier chiffre ne vaut que ce que vaut le deuxième, et
+le deuxième n'est pas encore durci — c'est le lot 2.
+
+### Lot 2 — L'oracle opposable (≈4 j)
+
+Durcir ce que le lot 1 a produit à la va-vite, en le dimensionnant sur des écarts réels.
+
+*Blocs livrés* : `observe/redact`, `judge/policy`, `judge/screen`.
+
+*Exigences* : `CAP-03`, `CAP-07`, `VER-02`, `VER-06`, `VER-07`, `VER-10`, `GEN-11`, `NF-06`.
+
+- `observe/redact` — purger en **liant**, pas en supprimant : un secret remplacé par une
+  constante casse la trace comme référence de comparaison. Deux pièges à éviter par
+  construction : une liste de *rétention* d'en-têtes se comporte comme une passoire dès qu'un
+  en-tête inattendu apparaît, là où une liste de purge échoue du bon côté ; et un secret peut
+  voyager dans un corps de requête aussi bien que dans un en-tête.
+- `judge/policy` — la politique d'équivalence est un fichier **lu par le code**, compilé
+  vers les paramètres DeepDiff. Une politique que rien ne parse est un document, pas une
+  politique. Le test qui l'établit : modifier une entrée du fichier doit changer le verdict.
+- `judge/screen` — comparaison d'écran par instantané ARIA, gabarit produit depuis la cible.
+
+*Critère de sortie* : le taux de détection vaut **100 %** ; la campagne tourne en CI cible
+éteinte ; aucune trace ne contient de secret, vérifié par un test ; la politique est lue par
+le code, chaque entrée citant un run A/A reproductible ; et **un test établit que le jeu de
+fautes semées n'est pas accessible au générateur** (`VER-11`).
+
+*Échec du lot* : un taux inférieur à 100 % sur des fautes aussi grossières signifie que
+l'oracle est une passoire, et que le comparateur est à reprendre avant tout élargissement.
+
+### Lot 3 — La deuxième cible (≈5 j)
+
+**Le lot qui décide si replikit est un outil ou un banc.** Il vient avant le runtime, parce
+qu'un runtime construit pour une seule cible est un runtime pour une seule cible.
+
+*Blocs livrés* : `observe/budget`, `observe/ingest`, `infer/provenance`.
+
+*Exigences* : `CAP-05`, `CAP-08`, `CAP-09`, `INF-02`, `INF-03`, `INF-04`.
+
+`CAP-08` entre ici et non plus tôt : c'est le contraste entre une cible libre, dont on dérive
+le schéma depuis la source, et une cible propriétaire, dont on ne dérive rien, qui donne à
+l'exigence son sens. Elle alimente `infer`, jamais `judge` (D6).
+
+*Critère de sortie* : la même chaîne, **sans modification propre à la cible sous les sept
+paquets**, produit une liste d'écarts et un taux de détection sur une cible sans code source,
+sans reset et sous budget de requêtes ; et **le nombre de lignes ajoutées sous
+`targets/<cible2>/` est publié** — c'est la mesure de généricité, et la seule.
+
+*Échec du lot* : toute ligne ajoutée sous `observe/`, `infer/`, `build/` ou `judge/` pour
+faire passer la cible 2 est un aveu que le bloc connaissait la cible 1.
+
+### Lot 4 — L'inférence et la boucle industrialisées (≈6 j)
+
+*Blocs livrés* : `infer/entities`, `infer/behavior`, `infer/merge`, `infer/rank`,
+`infer/deps`, `build/implement`, `build/preserve`, `build/seed`, `orchestrate/schema`,
+`orchestrate/trace`, `orchestrate/budget`, `orchestrate/parallel`, `orchestrate/evalset`.
+
+*Exigences* : `INF-05`, `INF-06`, `INF-07`, `INF-08`, `GEN-03`, `GEN-04`, `GEN-05`, `GEN-06`,
+`GEN-07`, `GEN-08`, `LLM-01`, `LLM-02`, `LLM-03`, `LLM-04`, `LLM-05`, `LLM-06`, `NF-05`.
+
+`orchestrate/loop` existe depuis le lot 1 sous sa forme minimale ; ce lot lui ajoute ce que
+`LLM-02` à `LLM-06` exigent — schémas aux frontières, journalisation, budget, parallélisme,
+jeu d'évaluation — et rien de plus. Le pipeline reste étagé : pas de cadriciel d'agents
+(`docs/architecture.md` §12).
+
+*Critère de sortie* : les trois chiffres du lot 1, **sur les deux cibles**, avec le nombre
+d'itérations en baisse ou expliqué.
+
+### Lot 5 — Le runtime et la surface (≈8 j)
+
+*Blocs livrés* : `run/sandbox`, `run/branch`, `run/determinism`, `run/admin`,
+`run/sideeffects`, `run/journal`, `run/fleet`, `run/faults`, `serve/parity`, `serve/mcp`,
+`serve/errors`, `serve/client`, `serve/contract`.
+
+*Exigences* : `RUN-01` à `RUN-08`, `RUN-10`, `RUN-13`, `GEN-09`, `API-01` à `API-07`,
+`API-09`, `API-10`, `NF-02`, `NF-03`, `NF-04`, `NF-07`, `NF-08`.
+
+`run/faults`, `run/fleet` et `serve/contract` servent `RUN-09`, `RUN-14` et `API-08`, qui
+sont des extensions : ces blocs ne sont livrés que si l'extension correspondante est retenue.
+Le reste du lot ne dépend pas d'elles.
+
+Trois exigences de ce lot se ratent de la même façon, et il faut le dire avant de les
+écrire. `RUN-03` (isolation) et `RUN-05` (hors ligne) se « démontrent » facilement par une
+lecture de code, ce qui ne démontre rien : leur critère de sortie exige une exécution.
+`RUN-13` se viole **arithmétiquement** dès qu'un environnement copie la base entière — le
+coût marginal vaut alors 100 % contre un plafond de 5 %, quel que soit le soin apporté au
+reste. Le partage de blocs de `run/branch` est ce qui la rend atteignable, sous la réserve
+du §10.5 de l'architecture.
+
+*Critère de sortie* : un environnement démarre et sert son périmètre **réseau sortant
+coupé** ; 100 environnements simultanés mesurés ; coût de stockage marginal mesuré sous 5 % ;
+réinitialisation chronométrée sous 5 s au 95e centile à la volumétrie `NF-02` ; parité
+UI↔API **mesurée** par `diff`, pas déclarée ; et le protocole `ACC-05` — 100 cycles, état
+complet comparé — exécuté et consigné.
+
+### Lot 6 — Concurrence, adversarial, acceptation, troisième cible (à cadrer)
+
+*Blocs livrés* : `observe/explore`, `observe/probe`, `build/realtime`, `build/migrate`,
+`judge/adversary`, `judge/coverage`, `judge/distinguish`, `judge/drift`, `judge/edge`,
+`judge/accept`.
+
+*Exigences* : `CAP-04`, `CAP-06`, `CAP-10`, `CAP-11`, `GEN-10`, `GEN-12`, `RUN-11`, `VER-03`,
+`VER-04`, `VER-05`, `VER-08`, `VER-09`, `NF-01`.
+
+Concurrence et temps réel (modèle séquentiel + Porcupine/Elle), exploration adversariale,
+couverture, indiscernabilité mesurée (D8), la **troisième cible**, et `judge/accept` — le
+bloc qui produit les onze critères `ACC` et sans lequel aucun clone n'est livrable.
+
+*Conséquence à écrire plutôt qu'à découvrir* : Mattermost est une cible collaborative, donc
+`CAP-11`, `GEN-10`, `RUN-11` et `ACC-09` sont bloquantes pour elle. Tant que le temps réel et
+le multi-acteur sont ici, **aucun clone produit avant n'est livrable au sens du §12**. C'est
+acceptable pour un banc, à condition de ne pas le confondre avec une livraison.
+
+## 5. Couverture — blocs et exigences bloquantes par lot
+
+Ce tableau est la carte que `tools/check_plan_coverage.py` recompte dans les deux sens : une
+exigence bloquante sans lot est une erreur, un bloc de `docs/architecture.md` sans lot en est
+une aussi. Une exigence citée dans une prose de justification n'est pas portée pour autant.
+
+Une affectation « lot 6 » n'est pas un renvoi aux calendes : c'est un engagement à ne pas
+déclarer un clone livrable avant, puisque le §12 du cahier conditionne les onze critères
+`ACC` à ces exigences-là.
+
+| Lot | Blocs livrés | Exigences bloquantes portées |
+|---|---|---|
+| **lot 1 — vertical agentique** | `observe/drive` `observe/store` `infer/surface` `build/scaffold` `orchestrate/loop` `judge/replay` `judge/diff` `judge/mutate` | `CAP-01`, `CAP-02`, `INF-01`, `GEN-01`, `GEN-02`, `VER-01`, `VER-11` |
+| **lot 2 — oracle opposable** | `observe/redact` `judge/policy` `judge/screen` | `CAP-03`, `VER-02`, `VER-06`, `VER-07`, `VER-10`, `GEN-11`, `NF-06` |
+| **lot 3 — deuxième cible** | `observe/budget` `observe/ingest` `infer/provenance` | `CAP-05`, `CAP-08`, `CAP-09`, `INF-02`, `INF-03`, `INF-04` |
+| **lot 4 — inférence et boucle** | `infer/entities` `infer/behavior` `infer/merge` `infer/rank` `infer/deps` `build/implement` `build/preserve` `build/seed` `orchestrate/schema` `orchestrate/trace` `orchestrate/budget` `orchestrate/parallel` `orchestrate/evalset` | `INF-05`, `GEN-03`, `GEN-04`, `GEN-05`, `GEN-06`, `GEN-07`, `GEN-08`, `LLM-01`, `LLM-02`, `LLM-03`, `NF-05` |
+| **lot 5 — runtime et surface** | `run/sandbox` `run/branch` `run/determinism` `run/admin` `run/sideeffects` `run/journal` `run/fleet` `run/faults` `serve/parity` `serve/mcp` `serve/errors` `serve/client` `serve/contract` | `RUN-01`, `RUN-02`, `RUN-03`, `RUN-04`, `RUN-05`, `RUN-06`, `RUN-10`, `RUN-13`, `GEN-09`, `API-01`, `API-02`, `API-03`, `API-04`, `API-05`, `API-06`, `API-09`, `NF-02`, `NF-03`, `NF-04`, `NF-07` |
+| **lot 6 — élargissement et acceptation** | `observe/explore` `observe/probe` `build/realtime` `build/migrate` `judge/adversary` `judge/coverage` `judge/distinguish` `judge/drift` `judge/edge` `judge/accept` | `CAP-04`, `CAP-06`, `CAP-10`, `CAP-11`, `GEN-10`, `GEN-12`, `RUN-11`, `VER-03`, `VER-04`, `VER-05`, `VER-08`, `VER-09`, `NF-01` |
+
+**Ce que ce tableau ne porte pas, et le dit.** Les exigences de priorité *Élevée* — `CAP-07`,
+`INF-06` à `INF-08`, `RUN-07`, `RUN-08`, `API-07`, `API-10`, `LLM-04` à `LLM-06`, `NF-08` —
+sont nommées dans le lot où elles tombent naturellement mais **ne conditionnent aucun critère
+de sortie**. Les quatre extensions — `RUN-09`, `RUN-12`, `RUN-14`, `API-08` — ne sont pas
+ordonnancées tant qu'elles n'ont pas été retenues, leur priorité étant conditionnelle
+(`docs/cahier-des-charges.md` §3).
+
+## 6. Ce dépôt part de zéro
+
+**Aucun code n'est repris de nulle part.** Ce n'est pas une posture : trois contraintes de
+l'architecture excluent la quasi-totalité de ce qui existe.
+
+- **Les versions.** `VER-10` a besoin de Playwright **1.60** pour `aria_snapshot(boxes=True)`
+  et `CAP-10` de la **1.48** pour `route_web_socket()`. Toute base épinglée en deçà rend deux
+  exigences bloquantes inaccessibles sans migration.
+- **D6.** Un banc qui appelle `docker exec … psql` pour lire l'état ne s'exécute sur aucune
+  cible tierce : son régime par défaut est le régime privilégié, celui qui ne peut pas porter
+  un verdict. C'est une propriété d'architecture, pas un détail d'implémentation, et elle se
+  vérifie avant d'emprunter quoi que ce soit.
+- **L'objet de la mesure.** Un harnais qui juge des **tâches contre l'environnement** ne se
+  convertit pas en harnais qui juge l'**environnement contre la cible**. Ce n'est pas la même
+  mesure ; les artefacts publics de ce domaine font le premier, `judge/` fait le second.
+
+Ce qui compte est la connaissance, et elle est dans ces quatre documents.
+
+## 7. Décisions en attente, et un échec assumé
+
+**Reformuler `ACC-08`** en pouvoir discriminant borné plutôt qu'en compte de fuites (D8).
+Ce n'est pas un affaiblissement — un seuil mesurable remplace un compte incomptable — mais
+c'est une modification du cahier des charges, donc une décision de périmètre.
+
+**Choisir la licence du projet.** Tranché le 01/09/2026 : **ce n'est pas un livrable
+commercial**, ce qui lève la contrainte sur les dépendances copyleft — `edist` (GPLv3)
+redevient disponible, l'AGPL cesse d'être un motif d'écartement, et OpenFastTrace (GPL-3.0)
+redevient discutable au lot 4. Reste à choisir la licence que *replikit* porte lui-même.
+
+**`ACC-10` est en échec, et le reste.** Le critère exige une revue croisée par un Curriculum
+Engineer. Personne ne tient ce rôle sur ce projet. La règle 1 interdit de détendre le critère
+ou de le déclarer sans objet : il est donc **consigné en échec**, et aucun clone produit ici
+n'est livrable au sens du §12 tant qu'un relecteur qualifié distinct de l'auteur du clone
+n'a pas rendu son avis. C'est un échec honnête, préféré à un vert négocié.
