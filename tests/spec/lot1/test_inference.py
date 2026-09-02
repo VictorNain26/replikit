@@ -11,6 +11,13 @@ import yaml
 
 from conftest import copie_trace, etape, lire_json
 
+
+def _trace_sans_etat(tmp_path):
+    """Le cas S2 : aucune projection d'état, l'inférence ne voit que le trafic."""
+    trace = copie_trace(tmp_path / "in")
+    (trace / "etat.json").unlink()
+    return trace
+
 CHEMINS_OBSERVES = {"/api/session", "/api/me", "/api/teams"}
 
 
@@ -25,7 +32,7 @@ def test_la_surface_est_un_openapi_3_qui_porte_chaque_chemin_observe(tmp_path):
     from openapi_spec_validator import validate
 
     sortie = tmp_path / "out"
-    etape("infer/surface", copie_trace(tmp_path / "in"), sortie)
+    etape("infer/surface", _trace_sans_etat(tmp_path), sortie)
     openapi = _openapi(sortie)
     assert str(openapi.get("openapi", "")).startswith("3."), "la surface doit être un OpenAPI 3"
     validate(openapi)
@@ -37,17 +44,19 @@ def test_la_surface_distingue_le_succes_de_l_erreur_sur_une_meme_operation(tmp_p
     """INF-01 : la trace contient un 200 et un 401 sur `POST /api/session`.
     Casse : une surface qui ne décrit que la réponse de succès."""
     sortie = tmp_path / "out"
-    etape("infer/surface", copie_trace(tmp_path / "in"), sortie)
+    etape("infer/surface", _trace_sans_etat(tmp_path), sortie)
     reponses = _openapi(sortie)["paths"]["/api/session"]["post"]["responses"]
     assert {"200", "401"} <= set(map(str, reponses)), f"réponses décrites : {sorted(reponses)}"
 
 
 def test_chaque_entite_porte_types_cles_relations_et_cardinalites(tmp_path):
     """INF-02, mot pour mot : « entités, types, clés, relations, cardinalités ».
-    La trace lie `users.team_id` à `teams.id` : la relation doit être trouvée.
+    Les entités se nomment d'après les collections des chemins — `/api/users/me`,
+    `/api/teams` — et `team_id` lie la première à la seconde : la relation doit être
+    trouvée depuis le trafic seul, sans `etat.json`.
     Casse : un modèle sans relation, ou une relation sans cardinalité."""
     sortie = tmp_path / "out"
-    etape("infer/entities", copie_trace(tmp_path / "in"), sortie)
+    etape("infer/entities", _trace_sans_etat(tmp_path), sortie)
     modele = lire_json(sortie / "entites.json")
     entites = {e["nom"]: e for e in modele["entites"]}
     assert {"users", "teams"} <= set(entites), f"entités inférées : {sorted(entites)}"
@@ -67,6 +76,6 @@ def test_le_schema_d_entite_est_du_json_schema_2020_12(tmp_path):
     from jsonschema import Draft202012Validator
 
     sortie = tmp_path / "out"
-    etape("infer/entities", copie_trace(tmp_path / "in"), sortie)
+    etape("infer/entities", _trace_sans_etat(tmp_path), sortie)
     for entite in lire_json(sortie / "entites.json")["entites"]:
         Draft202012Validator.check_schema(entite["schema"])

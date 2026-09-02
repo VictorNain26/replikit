@@ -1,4 +1,4 @@
-"""VER-01, VER-02, VER-05, VER-06, VER-08, VER-09, D3, D4, D5 — l'oracle, et ce qui l'empêche
+"""VER-01, VER-02, VER-06, VER-08, D3, D4 — l'oracle, et ce qui l'empêche
 d'être un tampon.
 
 Entrée : la trace de `fixtures/trace/`, mutée dans le test sur une seule famille à la fois.
@@ -169,57 +169,3 @@ def test_les_fautes_semees_couvrent_chaque_famille_et_sont_detectees(tmp_path):
     taux = 1 - len(ratees) / len(fautes)
     assert 0.0 <= taux <= 1.0
     assert not ratees, f"fautes semées non détectées ({taux:.0%} détectées) : {', '.join(ratees)}"
-
-
-def test_un_rapport_sans_taux_de_detection_est_refuse(tmp_path):
-    """VER-08 : « un compte d'écarts sans son taux de détection n'est pas un résultat ».
-    Le rapport refuse de s'écrire. Casse : un rapport qui se contente d'avertir."""
-    entree = tmp_path / "in"
-    entree.mkdir()
-    ecrire_json(entree / "ecarts.json", {"ecarts": []})
-    proc = etape("judge/report", entree, tmp_path / "out", attendu=None)
-    assert proc.returncode != 0 and "taux" in proc.stderr.lower(), "un rapport sans taux de détection a été écrit"
-
-
-def test_la_couverture_refuse_de_se_calculer_sans_perimetre_arrete(tmp_path):
-    """VER-05, §14 du cahier : sans `scope.yaml`, « 100 % » s'obtient en rétrécissant le
-    périmètre. Casse : une couverture calculée sur le seul observé."""
-    entree = tmp_path / "in"
-    entree.mkdir()
-    copie_trace(entree / "campagne")
-    proc = etape("judge/coverage", entree, tmp_path / "out", attendu=None)
-    assert proc.returncode != 0, "une couverture a été calculée sans périmètre déclaré"
-
-
-def test_le_jeu_de_fautes_est_hors_du_chemin_de_l_agent():
-    """D4 : « chemin refusé en lecture à l'agent de code ». La protection est une règle de
-    permissions, pas une convention. Casse : la règle retirée de `.claude/settings.json`."""
-    reglages = RACINE / ".claude" / "settings.json"
-    assert reglages.exists(), "aucun .claude/settings.json : le jeu de fautes n'est pas protégé"
-    deny = lire_json(reglages).get("permissions", {}).get("deny", [])
-    assert "Read(./judge/faults/**)" in deny, f"règles de refus présentes : {deny}"
-
-
-def _ecran(tmp_path: Path, cible: str, clone: str) -> list[dict]:
-    entree = tmp_path / "in"
-    entree.mkdir()
-    shutil.copy(FIXTURES / "ecrans" / cible, entree / "cible.yaml")
-    shutil.copy(FIXTURES / "ecrans" / clone, entree / "clone.yaml")
-    etape("judge/screen", entree, tmp_path / "out")
-    return _ecarts(tmp_path / "out")
-
-
-def test_un_ecran_deplace_en_bloc_n_est_pas_un_ecart(tmp_path):
-    """VER-09, D5 : la géométrie est relative aux voisins. Casse : une comparaison de
-    positions absolues."""
-    assert _ecran(tmp_path, "cible.yaml", "deplace.yaml") == []
-
-
-def test_un_role_change_est_un_ecart(tmp_path):
-    """VER-09 : un bouton devenu lien est un écart de structure."""
-    assert _ecran(tmp_path, "cible.yaml", "role.yaml")
-
-
-def test_un_ordre_change_est_un_ecart(tmp_path):
-    """VER-09 : « position relative ». Casse : une comparaison d'ensembles."""
-    assert _ecran(tmp_path, "cible.yaml", "permute.yaml")

@@ -7,7 +7,6 @@ s'observe par ses fichiers, jamais par ses fonctions (`docs/architecture.md` §4
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import re
@@ -44,26 +43,27 @@ def sources(paquet: str) -> list[Path]:
     return sorted((RACINE / paquet).rglob("*.py"))
 
 
-def etapes_declarees() -> list[str]:
-    """Les étapes du tableau §4 de docs/architecture.md, dans l'ordre."""
-    texte = (RACINE / "docs" / "architecture.md").read_text(encoding="utf-8")
-    section = texte.split("## 4. Les étapes", 1)[1].split("\n## 5.", 1)[0]
-    return re.findall(r"^\| `((?:%s)/[a-z]+)` \|" % "|".join(PAQUETS), section, re.M)
+def etapes_du_lot(lot: int) -> list[str]:
+    """Les étapes que le tableau §6 de docs/plan.md livre jusqu'au lot donné inclus."""
+    texte = (RACINE / "docs" / "plan.md").read_text(encoding="utf-8")
+    etapes: list[str] = []
+    for ligne in texte.splitlines():
+        m = re.match(r"^\| \*\*lot (\d+)", ligne)
+        if m and int(m.group(1)) <= lot:
+            etapes += re.findall(r"`((?:%s)/[a-z]+)`" % "|".join(PAQUETS), ligne.split("|")[3])
+    return etapes
 
 
 def etape(nom: str, entree: Path, sortie: Path, *args: str, attendu: int | None = 0) -> subprocess.CompletedProcess[str]:
     """Lance `python -m paquet.etape --in entree --out sortie`.
 
     Échoue avec le nom de l'étape manquante plutôt qu'une trace : c'est ce qui rend le rouge
-    lisible tant que les étapes n'existent pas.
+    lisible tant que les étapes n'existent pas. Le test de présence est un fichier, pas un
+    import : rien de production n'entre dans le processus de test.
     """
-    module = nom.replace("/", ".")
-    try:
-        present = importlib.util.find_spec(module) is not None
-    except ModuleNotFoundError:
-        present = False
-    if not present:
+    if not (RACINE / f"{nom}.py").exists():
         pytest.fail(f"l'étape `{nom}` n'existe pas encore", pytrace=False)
+    module = nom.replace("/", ".")
     sortie.mkdir(parents=True, exist_ok=True)
     proc = subprocess.run(
         [sys.executable, "-m", module, "--in", str(entree), "--out", str(sortie), *args],

@@ -9,7 +9,9 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from conftest import IMPORT_LLM, IMPORT_PAQUET, PAQUETS, RACINE, etapes_declarees, sources
+from conftest import IMPORT_LLM, IMPORT_PAQUET, PAQUETS, RACINE, etapes_du_lot, sources
+
+LOT = 1
 
 
 def test_les_sept_paquets_existent():
@@ -17,11 +19,11 @@ def test_les_sept_paquets_existent():
     assert not manquants, f"paquets absents : {', '.join(manquants)}"
 
 
-def test_chaque_etape_declaree_repond_a_in_et_out():
-    """§4 : « toute étape s'invoque de la même façon ». Casse : une étape absente du dépôt,
-    ou qui n'accepte pas `--in` et `--out`."""
-    etapes = etapes_declarees()
-    assert etapes, "aucune étape trouvée dans le tableau §4 de docs/architecture.md"
+def test_chaque_etape_du_lot_repond_a_in_et_out():
+    """§4 : « toute étape s'invoque de la même façon ». Casse : une étape du lot absente du
+    dépôt, ou qui n'accepte pas `--in` et `--out`. Le lot 2 relance ce test avec `LOT = 2`."""
+    etapes = etapes_du_lot(LOT)
+    assert etapes, "aucune étape trouvée pour ce lot dans le tableau §6 de docs/plan.md"
     fautives = []
     for nom in etapes:
         proc = subprocess.run([sys.executable, "-m", nom.replace("/", "."), "--help"],

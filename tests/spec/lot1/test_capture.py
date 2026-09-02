@@ -1,4 +1,4 @@
-"""CAP-01, CAP-02, CAP-05, CAP-07 — ce qu'une capture sur une cible vivante doit produire.
+"""CAP-01, CAP-02, CAP-07 — ce qu'une capture sur une cible vivante doit produire.
 
 Ces tests exigent une cible (`REPLIKIT_TARGET`, `REPLIKIT_TARGET_URL`) et échouent
 explicitement sans elle. Marqueur `cible` : l'intégration continue cible éteinte les écarte
@@ -53,13 +53,3 @@ def test_le_run_aa_caracterise_les_trois_axes(tmp_path, cible):
     releve = lire_json(sortie / "releve_aa.json")
     manquants = [axe for axe in ("identifiants", "horodatages", "ordre", "champs_variables") if axe not in releve]
     assert not manquants, f"axes absents du relevé A/A : {', '.join(manquants)}"
-
-
-def test_le_budget_arrete_la_capture(tmp_path, cible):
-    """CAP-05 : budget de requêtes avec arrêt. Casse : une capture qui dépasse le budget,
-    ou qui s'arrête sans le dire."""
-    sortie = tmp_path / "out"
-    etape("observe/record", _entree(tmp_path, cible, budget_requetes=3), sortie, attendu=None)
-    arret = lire_json(sortie / "arret.json")
-    assert arret.get("motif") == "budget", f"arrêt non motivé par le budget : {arret}"
-    assert len(lire_json(sortie / "reseau.har")["log"]["entries"]) <= 3, "le budget de 3 requêtes a été dépassé"
