@@ -13,6 +13,10 @@ C. no requirement is scheduled in a lot earlier than a step architecture.md §5 
 D. every one of the 73 requirements has exactly one row in architecture.md §5.
 E. couverture.md §1: each family's statuses sum to its total, each total matches the
    cahier's count for that family, the grand total matches, and every family has a row.
+F. every step cited in architecture.md §5 or in plan.md §6's table is declared in
+   architecture.md §4's step table.
+G. plan.md §5's per-lot `*Exigences* :` prose matches that lot's row in §6's table.
+H. plan.md §5's per-lot `*Étapes* :` prose matches that lot's row in §6's table.
 
 Run --self-test to verify each of these still fails on a mutated copy of the documents.
 """
@@ -189,6 +193,97 @@ def couverture_issues(reqs: list[str], cov: str) -> list[str]:
     return out
 
 
+LOT_HEADING = re.compile(r"^### Lot (\d+)", re.M)
+
+
+def plan_section5(plan: str) -> str:
+    return section(plan, "## 5. Lots", "## 6.")
+
+
+def plan_section6(plan: str) -> str:
+    return section(plan, "## 6.", "## 7.")
+
+
+def cited_steps(arch: str, plan: str) -> dict[str, set[str]]:
+    """Every step name found in architecture.md §5 or plan.md §6, with its source(s)."""
+    sources: dict[str, set[str]] = {}
+    for step in BLOCK.findall(architecture_section5(arch)):
+        sources.setdefault(step, set()).add("architecture §5")
+    for step in BLOCK.findall(plan_section6(plan)):
+        sources.setdefault(step, set()).add("plan §6")
+    return sources
+
+
+def undeclared_steps(arch: str, plan: str, steps4: set[str]) -> list[str]:
+    sources = cited_steps(arch, plan)
+    out = []
+    for step in sorted(sources):
+        if step in steps4:
+            continue
+        for src in sorted(sources[step]):
+            out.append(f"{step}: cited in {src} but not declared in architecture §4")
+    return out
+
+
+def prose_block(body: str, label: str) -> str:
+    """Text after `*label* :` up to the next blank line -- the wrap point every lot uses."""
+    m = re.search(rf"\*{label}\*\s*:\s*(.*?)(?:\n\s*\n|\Z)", body, re.S)
+    return m.group(1) if m else ""
+
+
+def lot_prose(plan: str) -> dict[int, tuple[set[str], set[str]]]:
+    """Per-lot (steps, requirements) named in §5's `*Étapes*` and `*Exigences*` prose."""
+    text = plan_section5(plan)
+    headings = list(LOT_HEADING.finditer(text))
+    out: dict[int, tuple[set[str], set[str]]] = {}
+    for i, m in enumerate(headings):
+        lot = int(m.group(1))
+        end = headings[i + 1].start() if i + 1 < len(headings) else len(text)
+        body = text[m.end() : end]
+        steps = set(BLOCK.findall(prose_block(body, "Étapes")))
+        reqs = set(REQ.findall(prose_block(body, "Exigences")))
+        out[lot] = (steps, reqs)
+    return out
+
+
+def lot_table_sets(plan: str) -> dict[int, tuple[set[str], set[str]]]:
+    """Per-lot (steps, requirements) named in §6's table row, keyed the same way as lot_prose."""
+    out: dict[int, tuple[set[str], set[str]]] = {}
+    for line in plan.splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 2 or cells[0].startswith("---"):
+            continue
+        lot = lot_of(cells[0])
+        if lot is None:
+            continue
+        rest = " ".join(cells[1:])
+        out[lot] = (set(BLOCK.findall(rest)), set(REQ.findall(rest)))
+    return out
+
+
+def prose_vs_table(plan: str, index: int) -> list[str]:
+    """index 0 compares steps (check H), index 1 compares requirements (check G)."""
+    prose = lot_prose(plan)
+    table = lot_table_sets(plan)
+    out = []
+    for lot in sorted(prose):
+        named_prose = prose[lot][index]
+        named_table = table.get(lot, (set(), set()))[index]
+        missing_from_table = sorted(named_prose - named_table)
+        missing_from_prose = sorted(named_table - named_prose)
+        if not missing_from_table and not missing_from_prose:
+            continue
+        parts = []
+        if missing_from_table:
+            parts.append(f"in prose but not in table: {', '.join(missing_from_table)}")
+        if missing_from_prose:
+            parts.append(f"in table but not in prose: {', '.join(missing_from_prose)}")
+        out.append(f"lot {lot}: " + "; ".join(parts))
+    return out
+
+
 def audit(cdc: str, arch: str, plan: str, cov: str, quiet: bool = False) -> int:
     reqs = all_requirements(cdc)
     ranks = requirement_ranks(cdc)
@@ -206,6 +301,9 @@ def audit(cdc: str, arch: str, plan: str, cov: str, quiet: bool = False) -> int:
     too_early = premature(req_owners, step_owners, req_steps5, steps4)
     unmapped = not_one_row_in_architecture(reqs, arch_rows)
     miscounted = couverture_issues(reqs, cov)
+    stray_steps = undeclared_steps(arch, plan, steps4)
+    req_prose_mismatch = prose_vs_table(plan, 1)
+    step_prose_mismatch = prose_vs_table(plan, 0)
 
     if not quiet:
         print(f"requirements in the cahier    : {len(reqs)}")
@@ -221,13 +319,25 @@ def audit(cdc: str, arch: str, plan: str, cov: str, quiet: bool = False) -> int:
         ("requirement(s) scheduled before a step that carries them", too_early),
         ("requirement(s) without exactly one row in architecture.md §5", unmapped),
         ("stated count(s) that couverture.md §1 contradicts", miscounted),
+        ("step(s) cited but not declared in architecture.md §4", stray_steps),
+        ("lot(s) where §5's requirement prose disagrees with §6's table", req_prose_mismatch),
+        ("lot(s) where §5's step prose disagrees with §6's table", step_prose_mismatch),
     ):
         if lines and not quiet:
             print(f"\n{len(lines)} {title}:")
             for line in lines:
                 print(f"  {line}")
 
-    if unassigned_reqs or undelivered_steps or too_early or unmapped or miscounted:
+    if (
+        unassigned_reqs
+        or undelivered_steps
+        or too_early
+        or unmapped
+        or miscounted
+        or stray_steps
+        or req_prose_mismatch
+        or step_prose_mismatch
+    ):
         return 1
     if not quiet:
         print("\nEvery L or O requirement and every step has exactly one carrier, no requirement is")
@@ -254,8 +364,8 @@ def test_checks(cdc: str, arch: str, plan: str, cov: str) -> None:
     lot1_without_diff = lot1_row2.replace(" `judge/diff`", "", 1)
     assert lot1_without_diff != lot1_row2, "judge/diff not found in the lot 1 row -- the table shape changed"
     lot5_row = next(l for l in plan.splitlines() if l.startswith("| **lot 5"))
-    lot5_with_diff = lot5_row.replace("`judge/agent`", "`judge/agent` `judge/diff`", 1)
-    assert lot5_with_diff != lot5_row, "judge/agent not found in the lot 5 row -- the table shape changed"
+    lot5_with_diff = lot5_row.replace("`observe/agent`", "`observe/agent` `judge/diff`", 1)
+    assert lot5_with_diff != lot5_row, "observe/agent not found in the lot 5 row -- the table shape changed"
     late_step = plan.replace(lot1_row2, lot1_without_diff, 1).replace(lot5_row, lot5_with_diff, 1)
     assert audit(cdc, arch, late_step, cov, quiet=True) == 1, "a premature requirement went unnoticed"
 
@@ -279,8 +389,28 @@ def test_checks(cdc: str, arch: str, plan: str, cov: str) -> None:
     assert bad_total_cov != cov, "the Total mutation was not applied"
     assert audit(cdc, arch, plan, bad_total_cov, quiet=True) == 1, "a wrong couverture total went unnoticed"
 
+    invented = plan.replace(lot1_row, lot1_row.replace("`judge/diff`", "`judge/diff` `judge/foo`", 1), 1)
+    assert invented != plan, "the invented-step mutation was not applied"
+    assert audit(cdc, arch, invented, cov, quiet=True) == 1, "a step absent from architecture §4 went unnoticed"
+
+    prose = prose_block(plan_section5(plan).split("### Lot 2", 1)[0], "Exigences")
+    assert "`CAP-01`" in prose, "CAP-01 not found in the lot 1 prose -- the shape changed"
+    prose_drift = plan.replace(prose, prose.replace("`CAP-01`, ", "", 1), 1)
+    assert prose_drift != plan, "the prose mutation was not applied"
+    assert audit(cdc, arch, prose_drift, cov, quiet=True) == 1, "a requirement dropped from the lot prose went unnoticed"
+
+    step_prose = prose_block(plan_section5(plan).split("### Lot 2", 1)[0], "Étapes")
+    assert "`observe/aa`" in step_prose, "observe/aa not found in the lot 1 prose -- the shape changed"
+    step_drift = plan.replace(step_prose, step_prose.replace("`observe/aa`, ", "", 1), 1)
+    assert step_drift != plan, "the step prose mutation was not applied"
+    assert audit(cdc, arch, step_drift, cov, quiet=True) == 1, "a step dropped from the lot prose went unnoticed"
+
+    duplicated = plan.replace(lot2_row, lot2_row.replace("`CAP-06`", "`CAP-06`, `CAP-01`", 1), 1)
+    assert duplicated != plan, "the duplication mutation was not applied"
+    assert audit(cdc, arch, duplicated, cov, quiet=True) == 1, "a requirement carried by two lots went unnoticed"
+
     assert audit(cdc, arch, plan, cov, quiet=True) == 0, "the unmutated documents must pass"
-    print("self-test: all six mutations are caught, the unmutated documents pass")
+    print("self-test: all ten mutations are caught, the unmutated documents pass")
 
 
 def main() -> int:

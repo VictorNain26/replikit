@@ -66,17 +66,18 @@ freezing a new test, watch it fail and read the message; name its casse in the d
 
 ## Where code goes
 
-Seven packages under the repository root, `targets/<target>/` for everything
-target-specific, `judge/faults/` for the seeded faults. Three greps the spec runs, and you
-should run before committing:
+Seven packages under the repository root, `commun/` for code shared by steps,
+`targets/<target>/` for everything target-specific, `judge/faults/` for the seeded faults
+(`docs/architecture.md` §4). Three greps the spec runs, and you should run before
+committing:
 
 - **P1** — no module of the seven packages imports a module of the seven packages, its own
-  package included. Shared code lives outside them.
-- **P3** — no LLM client import under `judge/`.
+  package included. `commun/` may be imported; a step may not.
+- **P3** — no LLM client import under `judge/`, and no step under `judge/` drives a model.
 - **P5** — no target name under the seven packages.
 
-`judge/faults/` is denied to the coding agent by a `Read(./judge/faults/**)` rule in the
-project's `.claude/settings.json` (D4). That file is the user's to write, not the agent's.
+The agent that writes a clone runs in a reduced workspace without `judge/` (D4); if you
+are that agent, the absence is deliberate — do not look for the faults elsewhere.
 
 ## Conventions
 

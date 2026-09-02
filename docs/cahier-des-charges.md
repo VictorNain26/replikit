@@ -7,8 +7,8 @@ Ce document porte le **quoi** : le texte des exigences, ce que chacune mesure, e
 standard que sa sortie doit respecter quand il en existe un. Le *comment* est dans
 `docs/architecture.md`, le *quand* dans `docs/plan.md`, l'*état mesuré* dans
 `docs/couverture.md`. Il définit l'espace de noms `XXX-NN` et les ancres `O1` à `O9`,
-`M1`, `M2`, `S1`, `S2` : aucun autre document ne crée ni ne reformule une exigence, il ne
-peut que la citer. Les numéros de section sont des ancres — on ne renumérote jamais.
+`M1`, `M2`, `S1`, `S2`, `R` : aucun autre document ne crée ni ne reformule une exigence,
+il ne peut que la citer. Les numéros de section sont des ancres — on ne renumérote jamais.
 
 ## 1. Objet
 
@@ -19,8 +19,11 @@ l'original — livré vite, sans trou qu'un agent puisse exploiter ou apprendre.
 
 ## 2. Ce que dit l'offre
 
-Chaque exigence de ce document cite une des lignes ci-dessous. Une exigence qui n'en cite
-aucune n'entre pas. Les citations sont textuelles.
+Chaque exigence de ce document cite une des lignes ci-dessous, de deux façons : parce que
+la phrase la nomme, ou **par indispensabilité** — la phrase citée ne peut pas être tenue
+sans elle, et la colonne *Source* le dit alors en toutes lettres. Une exigence qui n'entre
+par aucune des deux voies n'entre pas, sauf marquée `o` : une extension nommée pour
+mémoire, qui ne conditionne rien (§5). Les citations sont textuelles.
 
 | Ancre | Phrase de l'offre |
 |---|---|
@@ -59,6 +62,14 @@ comme un périmètre distinct avec ses propres exigences, jamais par analogie.
 depuis sa source (S1) et une cible propriétaire clonée de l'extérieur (S2). Un outillage
 démontré sur une seule origine n'a démontré que la moitié du métier.
 
+**Ce que l'agent perçoit en *computer use* n'est couvert qu'en structure.** M1 décrit un
+agent qui voit des pixels. Ce cahier compare les écrans par leur arbre d'accessibilité,
+leur position relative et leur texte (VER-09), et mesure l'indiscernabilité avec un agent
+qui lit cet arbre (VER-10). Un écart purement visuel — couleur, icône, police — est perçu
+par un agent à pixels et n'est détecté par rien ici. C'est une limite déclarée, pas un
+oubli : la lever demanderait un oracle visuel dont le seuil serait un aveu (D5 de
+`docs/architecture.md`), et elle se rediscute avec la première mesure de VER-10.
+
 **Les tâches d'entraînement sont hors périmètre.** L'offre les vend « *built on top of
 these application environments* » et les confie aux Curriculum Engineers. Ce cahier couvre
 ce qui rend un clone **prêt** à en porter (O8), pas les tâches elles-mêmes.
@@ -81,8 +92,13 @@ ce qui rend un clone **prêt** à en porter (O8), pas les tâches elles-mêmes.
 
 **Aucun seuil inventé.** L'offre ne chiffre que « *hours rather than weeks* ». Chaque
 exigence dit donc ce qu'elle **mesure** ; un seuil n'apparaît que là où l'offre le donne —
-« *no gaps* », « *complete* » — ou après une première mesure, consignée dans
-`docs/couverture.md`. Un seuil fixé avant toute mesure est un chiffre qu'on négociera après.
+« *no gaps* », « *complete* », et la parité des deux modes M1 et M2 qui n'a de sens qu'entière
+— ou après une première mesure, consignée dans `docs/couverture.md`. Un seuil fixé avant
+toute mesure est un chiffre qu'on négociera après. Une seule valeur échappe à cette règle
+sans la contredire : le taux de détection VER-08 sur les fautes que **nous** semons est
+attendu à 100 %, parce qu'une faute semée que l'oracle ne voit pas est un défaut du
+comparateur à corriger, pas une mesure à consigner. Sur les fautes venues d'écarts réels
+(VER-07), le taux est une mesure, et il se publie tel quel.
 
 **Un standard quand il en existe un.** La colonne *Standard* nomme le format que la sortie
 de l'exigence doit respecter, pour que chaque maillon soit remplaçable par un outil du
@@ -97,6 +113,9 @@ les citations.
   l'a pas produit des clones plus lents ou moins fiables, pas des clones faux.
 - **N** — *nommée par l'offre, hors démonstrateur* : mesurée si possible, jamais
   conditionnante ici (§3).
+- **E** — *extension*, marquée `o` : absente de l'offre, nommée pour mémoire parce qu'une
+  version antérieure la portait et qu'un rejet non consigné se répète. Jamais ordonnancée,
+  jamais conditionnante, hors du compte des exigences de socle.
 
 ## 6. Capture (CAP)
 
@@ -108,8 +127,8 @@ Le seul contact avec la cible. Tout le reste travaille sur ses sorties.
 | CAP-02 | Rejouer un parcours sur la cible et relever ce qui varie d'une exécution à l'autre — identifiants, horodatages, ordre. Ce relevé est le plancher de bruit sans lequel un écart ne se distingue pas d'une variation. | O3 | relevé des champs variables par parcours | — | L |
 | CAP-03 | Explorer automatiquement la surface accessible et produire un inventaire d'écrans : route, éléments interactifs, appels déclenchés, préconditions. | O2 | écrans inventoriés ; écrans découverts après coup par la vérification | — | L |
 | CAP-04 | Sonder chaque champ de formulaire inventorié avec des entrées limites — vide, hors bornes, doublon, caractères spéciaux — et enregistrer la réponse. Les règles de validation et leurs messages sont la partie la plus souvent manquée d'un clone. | O1 | part des champs sondés | — | L |
-| CAP-05 | Respecter un budget de requêtes et un débit par cible avec arrêt d'urgence ; détecter les protections anti-robot et les ruptures de session, s'arrêter, préserver l'état partiel, alerter. Aucun contournement. | S2 | requêtes émises contre budget ; incidents journalisés | — | L |
-| CAP-06 | Expurger des traces les secrets et données personnelles avant stockage, sans les rendre inutilisables comme référence de comparaison. | S2 | secrets détectés dans les traces stockées | — | L |
+| CAP-05 | Respecter un budget de requêtes et un débit par cible avec arrêt d'urgence ; détecter les protections anti-robot et les ruptures de session, s'arrêter, préserver l'état partiel, alerter. Aucun contournement. | S2, par indispensabilité : un SaaS propriétaire observé sans budget bannit le compte qui l'observe | requêtes émises contre budget ; incidents journalisés | — | L |
+| CAP-06 | Expurger des traces les secrets et données personnelles avant stockage, sans les rendre inutilisables comme référence de comparaison. | S2, par indispensabilité : observer Slack ou HubSpot, c'est observer des comptes réels et leurs données | secrets détectés dans les traces stockées | — | L |
 | CAP-07 | Stocker les traces adressables par identifiant stable, versionnées, avec la version de la cible observée. | O6, O3 | traces sans version de cible | — | L |
 | CAP-08 | Quand la cible est libre, ingérer son dépôt source pour dériver schéma, migrations et routes directement plutôt que par inférence. | S1 | éléments de spécification dérivés de la source contre inférés | — | L |
 | CAP-09 | Enregistrer plusieurs sessions simultanées sur une même trace, avec l'ordre relatif des événements entre acteurs. | O1, S2 | ordre relatif préservé | — | L |
@@ -126,8 +145,8 @@ De la trace à une spécification explicite, relue, versionnée.
 | INF-03 | Dériver la machine à états de chaque entité depuis les séquences de transitions observées. | O2 | transitions observées non représentées | format sérialisé, tranché en architecture | L |
 | INF-04 | Rattacher chaque élément de la spécification aux traces qui le fondent, et marquer *non observé* ce qui relève de la conjecture : remonté comme dette de capture, jamais comblé en silence. | O3, O1 | éléments *non observé* | — | L |
 | INF-05 | Spécification lisible, éditable à la main, validée par schéma, versionnée ; de nouvelles traces l'enrichissent sans écraser les amendements humains. | O6, O2 | amendements perdus après enrichissement | JSON Schema pour la validation | L |
-| INF-06 | Signaler les contradictions entre traces — deux observations impliquant des règles incompatibles — au lieu d'arbitrer seul. | O4 | contradictions signalées contre arbitrées | — | L |
-| INF-07 | Classer écrans et opérations par fréquence d'usage observée et proposer un périmètre hiérarchisé. C'est l'outillage de la priorisation sans PM. | O9 | proposition de périmètre produite | — | O |
+| INF-06 | Signaler les contradictions entre traces — deux observations impliquant des règles incompatibles — au lieu d'arbitrer seul. | O2, O3 | sur un corpus où deux traces se contredisent sciemment, la contradiction figure dans la spécification comme élément *contradictoire* et non comme règle | — | L |
+| INF-07 | Classer écrans et opérations par fréquence d'usage observée et proposer un périmètre hiérarchisé. C'est l'outillage de la priorisation sans PM. | O9 | chaque écran et opération du corpus porte sa fréquence, et la proposition est ordonnée par elle | — | O |
 
 ## 8. Génération (GEN)
 
@@ -155,8 +174,8 @@ Ce qui fait d'une application un terrain d'entraînement.
 |---|---|---|---|---|---|
 | RUN-01 | Ramener un environnement à un état de départ nommé ; capturer l'état complet à tout instant et le restaurer comme point de départ. | R, O1 | cycles reset → état identique à la référence | — | L |
 | RUN-02 | Isolation stricte entre environnements simultanés — aucune donnée, cache ou compteur partagé — et plusieurs environnements par cible en parallèle. | O7, R | environnements simultanés mesurés ; coût marginal par environnement | — | L pour l'isolation, N pour le nombre |
-| RUN-03 | Horloge et sources d'aléa contrôlables ; au même point de départ et aux mêmes entrées, deux exécutions produisent le même état. | O4, O3 | états divergents à entrées identiques | — | L |
-| RUN-04 | Aucune dépendance sortante en session ; les effets de bord externes de la cible — courriel, webhook, authentification déléguée, fichiers — sont simulés localement avec une surface d'inspection. | O1, O8 | connexions sortantes observées ; parcours inaccessibles faute de double | — | L |
+| RUN-03 | Horloge et sources d'aléa contrôlables ; au même point de départ et aux mêmes entrées, deux exécutions produisent le même état. | R, O3 : un environnement « *resettable* » qui ne rejoue pas pareil ne permet ni harnais ni comparaison | états divergents à entrées identiques | — | L |
+| RUN-04 | Aucune dépendance sortante en session ; les effets de bord externes de la cible — courriel, webhook, authentification déléguée, fichiers — sont simulés localement avec une surface d'inspection. | O1, O8, par indispensabilité : un terrain d'entraînement qui envoie de vrais courriels n'est ni réinitialisable ni prêt à entraîner | connexions sortantes observées ; parcours inaccessibles faute de double | — | L |
 | RUN-05 | Surface d'administration hors trace de l'agent : lire l'état, forcer une transition, injecter une donnée. C'est ce qui permet de construire une tâche et de calculer sa récompense. | O8 | opérations d'administration visibles par l'agent | — | L |
 | RUN-06 | Journalisation intégrale des interactions de l'agent, exportable. | O8 | interactions absentes du journal | — | L |
 | RUN-07 | Provisionnement et destruction à la demande, infrastructure décrite comme code, image épinglée. | O7 | environnements orphelins ; dérive entre code et déployé | Compose Specification, images OCI | O |
@@ -210,9 +229,9 @@ Où les modèles interviennent, et sous quel contrôle.
 | LLM-01 | Boucle génération → vérification déterministe → correction : une sortie de modèle n'est acceptée qu'après passage d'un vérificateur qui n'est pas un modèle, avec plafond de tentatives et escalade humaine. | O4 | itérations avant convergence ; escalades | — | L |
 | LLM-02 | Sorties structurées validées par schéma à chaque frontière ; jamais d'analyse de texte libre entre deux étapes. | O4 | frontières sans schéma | JSON Schema | L |
 | LLM-03 | Journal intégral des appels — entrées, sorties, coût, latence, verdict — rejouable. | O4, O6 | appels absents du journal | conventions sémantiques GenAI d'OpenTelemetry — statut *Development*, attributs encore mouvants | O |
-| LLM-04 | Budget par tâche et par cible, fixé avant lancement, interruption au dépassement. | O4, O1 | dépassements | — | O |
-| LLM-05 | Prompts et scaffolds versionnés comme du code, avec un jeu d'évaluation construit depuis des écarts réels constatés, jamais fabriqué. | O6 | régressions détectées avant déploiement | — | O |
-| LLM-06 | Parallélisation des tâches indépendantes — un écran, une entité, un cas — avec agrégation. | O4, O7 | tâches séquentielles évitables | — | O |
+| LLM-04 | Budget par tâche et par cible, fixé avant lancement, interruption au dépassement. | O4, par indispensabilité : « *push […] to their breaking point* » sans borne est une facture, pas une méthode | dépassements ; jetons consommés par lot, publiés | — | O |
+| LLM-05 | Prompts et scaffolds versionnés comme du code, avec un jeu d'évaluation construit depuis des écarts réels constatés, jamais fabriqué. | O6 | le jeu d'évaluation rejoué sur la version courante des scaffolds : nombre de cas, part tenue | — | O |
+| LLM-06 | Parallélisation des tâches indépendantes — un écran, une entité, un cas — avec agrégation. | O4, O7 | temps de la boucle sur N écrans contre temps sur un écran | — | O |
 
 ## 13. Outillage et cadence (OUT)
 
@@ -222,7 +241,7 @@ Ce que l'offre demande de la chaîne elle-même.
 |---|---|---|---|---|---|
 | OUT-01 | Délai de bout en bout mesuré par cible — heures de calendrier, jetons consommés, décisions humaines bloquantes — publié, et en baisse d'une cible à la suivante. | O1, O2, O6 | les trois mesures, par cible | — | O |
 | OUT-02 | La chaîne complète rejoue en intégration continue, cible éteinte, à chaque modification du clone ou de l'outillage. | O3, O7 | exécutions manuelles requises | — | O |
-| OUT-03 | Espaces de travail isolés par cible, sans ressource partagée bloquante, avec une vue d'avancement et d'écarts ouverts par clone. | O7 | chantiers bloqués l'un par l'autre | — | N |
+| OUT-03 | Espaces de travail isolés par cible, sans ressource partagée bloquante, avec une vue d'avancement et d'écarts ouverts par clone. | O7 | deux campagnes lancées en même temps sur deux cibles se terminent toutes deux ; la vue liste chaque clone avec ses écarts ouverts | — | N |
 
 ## 14. Acceptation d'un clone (ACC)
 
@@ -235,7 +254,7 @@ celui-ci a été arrêté et versionné **avant** la campagne : sinon « zéro �
 |---|---|---|---|
 | ACC-01 | Écarts ouverts sur le périmètre déclaré, accompagnés du taux de détection VER-08 de la même campagne. | O1 « *no gaps* » | 0 écart ; taux publié, jamais inférieur à la campagne précédente |
 | ACC-02 | Couverture VER-05 du périmètre déclaré. | O1 « *complete* » | 100 % |
-| ACC-03 | Parité API-01 sur les actions du périmètre. | M1, M2 | 100 % |
+| ACC-03 | Parité API-01 sur les actions du périmètre. | M1, M2 — deux modes sur le même environnement, la parité n'a de sens qu'entière (§5) | 100 % |
 | ACC-04 | Campagne adversariale VER-03 menée jusqu'à son critère d'arrêt déclaré avant lancement, écarts trouvés corrigés et couverts par VER-07. | O3 | requis |
 | ACC-05 | Réinitialisation RUN-01 : cycles consécutifs sans résidu, état complet comparé à la référence. Nombre de cycles déclaré avant la campagne. | R | requis |
 | ACC-06 | Éléments *non observé* (INF-04) restés non résolus. | O1 | 0 |

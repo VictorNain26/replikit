@@ -1,7 +1,9 @@
-# Chaque lot de docs/plan.md nomme sa commande. Tant qu'elle sort en erreur, le lot n'est
-# pas tenu — c'est ce qui rend « critère falsifiable » vérifiable plutôt qu'affirmé.
+# Chaque lot de docs/plan.md nomme sa commande. Elle sort en erreur tant que les artefacts
+# que son critère de sortie exige n'existent pas — jamais par un `exit 1` écrit d'avance.
 
 PY := $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
+CIBLE ?= mattermost
+RAPPORTS := targets/$(CIBLE)/rapports
 
 .PHONY: check spec lot1 lot2 lot3 lot4 lot5
 
@@ -11,20 +13,29 @@ check:
 	$(PY) tools/check_plan_coverage.py --self-test
 	$(PY) tools/check_spec_frozen.py
 
-## La spécification exécutable. Rouge tant que les étapes n'existent pas.
+## La spécification exécutable, tous lots. Rouge tant que les étapes n'existent pas.
 spec:
 	$(PY) -m pytest tests/spec -q
 
-lot1: check spec
-	@echo
-	@echo "Le lot 1 exige trois chiffres publiés ensemble ou pas du tout :"
-	@echo "  1. la liste d'écarts cible<->clone, chaque écart portant sa trace"
-	@echo "  2. le taux de détection sur le jeu de fautes initial (VER-08)"
-	@echo "  3. le nombre d'itérations de réparation avant convergence"
-	@echo "plus les jetons consommés et les décisions prises (OUT-01)."
-	@echo "Aucun n'est produit. Voir docs/plan.md lot 1."
-	@exit 1
+## Lot 1 : la spec du lot, puis les trois chiffres publiés ensemble ou pas du tout.
+lot1: check
+	$(PY) -m pytest tests/spec/lot1 -q
+	@for f in ecarts.json taux.json iterations.json jetons.json decisions.json; do \
+	  test -s $(RAPPORTS)/lot1/$$f || { echo "lot 1 : $(RAPPORTS)/lot1/$$f absent — voir docs/plan.md lot 1"; exit 1; }; \
+	done
+	@$(PY) -c "import json;r='$(RAPPORTS)/lot1/';e=json.load(open(r+'ecarts.json'));t=json.load(open(r+'taux.json'));i=json.load(open(r+'iterations.json'));print('écarts :',len(e['ecarts']),'| taux de détection :',t['taux'],'| itérations :',i['iterations'])"
 
-lot2 lot3 lot4 lot5:
-	@echo "$@ : critère de sortie non outillé — voir docs/plan.md."
-	@exit 1
+lot2: lot1
+	$(PY) -m pytest tests/spec/lot2 -q
+	@echo "lot 2 : critère de sortie non outillé — voir docs/plan.md."; exit 1
+
+lot3: lot2
+	$(PY) -m pytest tests/spec/lot3 -q
+	@echo "lot 3 : critère de sortie non outillé — voir docs/plan.md."; exit 1
+
+lot4: lot3
+	$(PY) -m pytest tests/spec/lot4 -q
+	@echo "lot 4 : critère de sortie non outillé — voir docs/plan.md."; exit 1
+
+lot5: lot4
+	@echo "lot 5 : critère de sortie non outillé — voir docs/plan.md."; exit 1

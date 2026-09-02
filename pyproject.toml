@@ -20,7 +20,7 @@ spec = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [".", "tests/spec"]
 markers = [
   "cible: exige une cible vivante (REPLIKIT_TARGET, REPLIKIT_TARGET_URL) ; échoue sans elle, ne se saute jamais",
   "environnement: exige un environnement du clone (REPLIKIT_ENV_URL, REPLIKIT_ENV_DSN) ; échoue sans lui, ne se saute jamais",

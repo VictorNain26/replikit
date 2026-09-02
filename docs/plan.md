@@ -56,11 +56,10 @@ spécification gelée et son relecteur humain : le débit du lot 1 est celui de 
 
 ### 4.1 Première cible — Mattermost, l'étalon (S1)
 
-Déployée localement par le compose officiel, image épinglée par *digest* relevé par nous
-(le compose épingle par étiquette, vérifié). API `/api/v4` en OpenAPI 3.0.0, PostgreSQL
-14+, sources AGPL-3.0 ou commerciale, binaires MIT, identifiants de 26 caractères en
-z-base-32 — tout vérifié, `docs/architecture.md` §9. Marque protégée : toute démonstration
-publique rebrande.
+Déployée localement par le compose officiel, image épinglée par *digest* relevé par nous.
+Ses propriétés utiles — API OpenAPI, PostgreSQL, source disponible, licence, forme des
+identifiants — sont vérifiées dans `docs/architecture.md` §9 et ne sont pas répétées ici.
+Marque protégée : toute démonstration publique rebrande.
 
 *Ce que cette justification vaut.* Ce qui fait gagner Mattermost — API documentée, source
 disponible, reset par base modèle, ni anti-robot ni budget — est exactement ce qu'une cible
@@ -68,8 +67,8 @@ propriétaire n'a pas. « L'oracle marche sur Mattermost » est une information 
 « l'oracle marchera ». Mattermost est un étalon : on y voit l'état des deux côtés, ce qui
 sert à étalonner (P4), jamais à juger.
 
-*Périmètre déclaré*, arrêté et versionné avant toute campagne dans
-`targets/mattermost/scope.yaml` :
+*Périmètre proposé*, à arrêter et versionner dans `targets/mattermost/scope.yaml` avant
+toute campagne — c'est ce fichier qui fait foi, pas ce tableau :
 
 | Écran | Entités |
 |---|---|
@@ -120,7 +119,10 @@ agentique est l'apport mesuré de l'agent. Si l'OpenAPI ne sert rien d'utile,
 `scope.yaml` arrêté, le *digest* de l'image relevé, le plafond de jetons fixé. Exécutions :
 deux captures A/A, puis un rejeu sur le clone par itération de réparation.
 
-*Commande* : `make lot1`.
+*Commande* : `make lot1` — la spec du lot, puis cinq artefacts sous
+`targets/mattermost/rapports/lot1/` : `ecarts.json`, `taux.json`, `iterations.json`,
+`jetons.json`, `decisions.json`. Elle échoue si l'un manque ou est vide, et imprime les
+trois chiffres sinon. Aucun `exit 1` écrit d'avance.
 
 *Critère de sortie* : trois chiffres publiés ensemble ou pas du tout — la liste d'écarts
 cible↔clone, chaque écart portant sa trace de reproduction ; le taux de détection sur le
@@ -134,8 +136,12 @@ Durcir ce que le lot 1 a produit vite, sur des écarts réels.
 *Étapes* : `observe/redact`, `infer/states`, `infer/provenance`, `infer/rank`,
 `judge/screen`, `judge/leaks`, `judge/coverage`, `judge/report`.
 
-*Exigences* : `CAP-06`, `INF-03`, `INF-04`, `INF-05`, `INF-06`, `INF-07`, `GEN-03`,
-`GEN-04`, `RUN-09`, `VER-05`, `VER-06`, `VER-07`, `VER-09`, `OUT-02`.
+*Exigences* : `CAP-06`, `INF-03`, `INF-04`, `INF-05`, `INF-06`, `INF-07`, `VER-05`,
+`VER-06`, `VER-07`, `VER-09`, `OUT-02`.
+
+`GEN-03`, `GEN-04` et `RUN-09` se **jugent** ici — `judge/diff`, `judge/screen`,
+`judge/leaks` — mais ne se **tiennent** qu'en changeant le clone, ce que ce lot s'interdit :
+elles sont portées par le lot 4.
 
 - `observe/redact` purge en **liant**, pas en supprimant : un secret remplacé par une
   constante casse la trace comme référence. Liste de purge, jamais liste de rétention ; un
@@ -192,8 +198,9 @@ un aveu que l'étape connaissait la cible 1.
 *Étapes* : `build/seed`, `build/preserve`, `run/admin`, `run/journal`, `serve/mcp`,
 `serve/parity`, `orchestrate/evalset`.
 
-*Exigences* : `GEN-05`, `GEN-07`, `GEN-08`, `GEN-09`, `RUN-04`, `RUN-05`, `RUN-06`,
-`RUN-07`, `API-01`, `API-02`, `API-03`, `API-04`, `API-05`, `LLM-02`, `LLM-05`, `LLM-06`.
+*Exigences* : `GEN-03`, `GEN-04`, `GEN-05`, `GEN-07`, `GEN-08`, `GEN-09`, `RUN-04`,
+`RUN-05`, `RUN-06`, `RUN-07`, `RUN-09`, `API-01`, `API-02`, `API-03`, `API-04`, `API-05`,
+`LLM-02`, `LLM-05`, `LLM-06`.
 
 `RUN-04` et l'isolation de `RUN-02` se « démontrent » facilement par lecture de code, ce
 qui ne démontre rien : leur critère exige une exécution réseau coupé.
@@ -212,7 +219,7 @@ republiés sur les deux cibles, itérations en baisse ou expliquées.
 
 ### Lot 5 — Collaboratif, adversarial, indiscernabilité, acceptation
 
-*Étapes* : `judge/edge`, `judge/adversary`, `judge/agent`, `serve/load`.
+*Étapes* : `judge/edge`, `judge/adversary`, `observe/agent`, `serve/load`.
 
 *Exigences* : `CAP-09`, `CAP-10`, `GEN-06`, `RUN-02`, `RUN-08`, `VER-03`, `VER-04`,
 `VER-10`.
@@ -244,10 +251,10 @@ Une exigence citée dans une prose n'est pas portée pour autant.
 | Lot | Commande | Étapes livrées | Exigences portées |
 |---|---|---|---|
 | **lot 1 — vertical** | `make lot1` | `observe/record` `observe/aa` `infer/surface` `infer/entities` `build/generate` `run/env` `run/reset` `judge/replay` `judge/policy` `judge/diff` `judge/mutate` `orchestrate/loop` `orchestrate/trace` | `CAP-01`, `CAP-02`, `CAP-07`, `INF-01`, `INF-02`, `GEN-01`, `GEN-02`, `RUN-01`, `RUN-03`, `VER-01`, `VER-02`, `VER-08`, `LLM-01`, `LLM-03`, `LLM-04` |
-| **lot 2 — oracle opposable** | `make lot2` | `observe/redact` `infer/states` `infer/provenance` `infer/rank` `judge/screen` `judge/leaks` `judge/coverage` `judge/report` | `CAP-06`, `INF-03`, `INF-04`, `INF-05`, `INF-06`, `INF-07`, `GEN-03`, `GEN-04`, `RUN-09`, `VER-05`, `VER-06`, `VER-07`, `VER-09`, `OUT-02` |
+| **lot 2 — oracle opposable** | `make lot2` | `observe/redact` `infer/states` `infer/provenance` `infer/rank` `judge/screen` `judge/leaks` `judge/coverage` `judge/report` | `CAP-06`, `INF-03`, `INF-04`, `INF-05`, `INF-06`, `INF-07`, `VER-05`, `VER-06`, `VER-07`, `VER-09`, `OUT-02` |
 | **lot 3 — deuxième cible** | `make lot3` | `observe/explore` `observe/probe` `observe/ingest` | `CAP-03`, `CAP-04`, `CAP-05`, `CAP-08`, `GEN-11`, `OUT-01` |
-| **lot 4 — surface et environnement** | `make lot4` | `build/seed` `build/preserve` `run/admin` `run/journal` `serve/mcp` `serve/parity` `orchestrate/evalset` | `GEN-05`, `GEN-07`, `GEN-08`, `GEN-09`, `RUN-04`, `RUN-05`, `RUN-06`, `RUN-07`, `API-01`, `API-02`, `API-03`, `API-04`, `API-05`, `LLM-02`, `LLM-05`, `LLM-06` |
-| **lot 5 — acceptation** | `make lot5` | `judge/edge` `judge/adversary` `judge/agent` `serve/load` | `CAP-09`, `CAP-10`, `GEN-06`, `RUN-02`, `RUN-08`, `VER-03`, `VER-04`, `VER-10` |
+| **lot 4 — surface et environnement** | `make lot4` | `build/seed` `build/preserve` `run/admin` `run/journal` `serve/mcp` `serve/parity` `orchestrate/evalset` | `GEN-03`, `GEN-04`, `GEN-05`, `GEN-07`, `GEN-08`, `GEN-09`, `RUN-04`, `RUN-05`, `RUN-06`, `RUN-07`, `RUN-09`, `API-01`, `API-02`, `API-03`, `API-04`, `API-05`, `LLM-02`, `LLM-05`, `LLM-06` |
+| **lot 5 — acceptation** | `make lot5` | `judge/edge` `judge/adversary` `observe/agent` `serve/load` | `CAP-09`, `CAP-10`, `GEN-06`, `RUN-02`, `RUN-08`, `VER-03`, `VER-04`, `VER-10` |
 
 **Ce que ce tableau ne porte pas, et le dit.** Les exigences de rang N — `GEN-10`,
 `API-06`, `OUT-03`, la volumétrie de `GEN-08` et le nombre de `RUN-02` — sont mesurées

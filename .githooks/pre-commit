@@ -13,7 +13,7 @@ set -euo pipefail
 stages=$(git diff --cached --name-only --diff-filter=ACMR)
 
 spec=$(echo "$stages" | grep -E '^tests/spec/' || true)
-code=$(echo "$stages" | grep -E '^(observe|infer|build|run|serve|judge|orchestrate)/' || true)
+code=$(echo "$stages" | grep -E '^(observe|infer|build|run|serve|judge|orchestrate|targets|commun)/' || true)
 
 if [ -n "$spec" ] && [ -n "$code" ]; then
   echo "refus : ce commit touche à la fois la spécification gelée et un paquet." >&2
