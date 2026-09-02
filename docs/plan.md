@@ -77,9 +77,9 @@ toute campagne — c'est ce fichier qui fait foi, pas ce tableau :
 | C. Canal et envoi de message | `posts` |
 
 Recherche, fichiers, réactions, fils hors périmètre au premier tour. Le temps réel entre au
-lot 5, et l'écran C en dépend : Mattermost livre les messages par WebSocket. **Tant que le
-lot 5 n'est pas tenu, l'écran C se compare sur l'état persistant et les réponses, pas sur
-les événements**, et le rapport le dit.
+lot 5, et l'écran C en dépend : Mattermost livre les messages par WebSocket. Tant que le
+lot 5 n'est pas tenu, la famille *événements* est absente des traces de l'écran C, et le
+rapport la nomme comme non comparée (`docs/architecture.md` §4).
 
 *Première mesure, avant tout diff* : rejouer deux fois le même scénario et compter les
 opérations exercées. Si le nombre varie, le dénominateur de `VER-05` varie avec lui.
@@ -143,11 +143,8 @@ Durcir ce que le lot 1 a produit vite, sur des écarts réels.
 `judge/leaks` — mais ne se **tiennent** qu'en changeant le clone, ce que ce lot s'interdit :
 elles sont portées par le lot 4.
 
-- `observe/redact` purge en **liant**, pas en supprimant : un secret remplacé par une
-  constante casse la trace comme référence. Liste de purge, jamais liste de rétention ; un
-  secret voyage dans un corps aussi bien que dans un en-tête.
-- `judge/screen` compare sur gabarit produit depuis la cible, `/children: equal` sur les
-  écrans du périmètre.
+- `observe/redact` et `judge/screen` entrent avec la forme que `docs/architecture.md` §4
+  leur donne : expurgation liante, gabarit produit depuis la cible.
 - `judge/report` produit les dix critères `ACC`, et dit lesquels sont tenus.
 
 *Charge* — décisions bloquantes : le format de `equivalence.yaml` et du relevé A/A ratifié
@@ -155,7 +152,9 @@ elles sont portées par le lot 4.
 candidat de comparateur, une par faute semée. Pas de boucle de réparation dans ce lot : le
 clone n'y change pas.
 
-*Commande* : `make lot2`.
+*Commande* : `make lot2` — la spec du lot, puis `targets/mattermost/rapports/lot2/acceptation.json`,
+le rapport de `judge/report` ; elle échoue s'il manque ou si le taux de détection qu'il
+porte n'est pas 1.
 
 *Critère de sortie* : le taux de détection vaut **100 %** sur le jeu initial ; la campagne
 tourne en intégration continue cible éteinte ; aucune trace stockée ne contient de secret,
@@ -183,7 +182,8 @@ reset (`docs/architecture.md` §7.1) avant toute politique, le budget `CAP-05` d
 Exécutions : c'est ce budget qui borne le lot — chaque capture, chaque rejeu A/A le
 consomme. Premier lot dont la durée est dictée par la cible.
 
-*Commande* : `make lot3`.
+*Commande* : `make lot3` — la spec du lot, puis `ecarts.json`, `taux.json` et
+`lignes_cible.json` sous `targets/<cible2>/rapports/lot3/` ; elle échoue si l'un manque.
 
 *Critère de sortie* : la même chaîne, **sans ligne propre à la cible sous les sept
 paquets**, produit une liste d'écarts et un taux de détection sur une cible sans source,
@@ -210,7 +210,9 @@ qui ne démontre rien : leur critère exige une exécution réseau coupé.
 tâche par les deux surfaces. Plafond de jetons : le plus élevé du plan, la boucle tourne
 sur deux cibles.
 
-*Commande* : `make lot4`.
+*Commande* : `make lot4` — la spec du lot, puis `parite.json`, `reset.json`, `ecarts.json`,
+`taux.json` et `iterations.json` sous `rapports/lot4/` de chaque cible ; elle échoue si l'un
+manque.
 
 *Critère de sortie* : un environnement sert son périmètre **réseau sortant coupé** ; la
 parité UI↔API est **mesurée** par `judge/diff`, pas déclarée ; les mêmes opérations sont
@@ -234,7 +236,8 @@ adversariale, la tâche de `VER-10` et le modèle qui pilote l'agent, le nombre
 d'environnements à mesurer pour `RUN-02`. Exécutions : la campagne adversariale jusqu'à son
 critère, `VER-10` répétée jusqu'à une distribution, la charge k6 à la volumétrie déclarée.
 
-*Commande* : `make lot5`.
+*Commande* : `make lot5` — `acceptation.json`, `indiscernabilite.json` et
+`environnements.json` sous `rapports/lot5/` ; elle échoue si l'un manque.
 
 *Critère de sortie* : `judge/report` produit les **dix** critères `ACC` et dit lesquels
 sont tenus ; `VER-10` est publiée comme distribution ; `RUN-02` est mesurée. Un lot 5

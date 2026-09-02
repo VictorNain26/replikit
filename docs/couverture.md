@@ -33,8 +33,9 @@ l'établit pas.
 
 ## 2. Seuils fixés après première mesure
 
-Le cahier n'invente aucun seuil (§5). Chaque seuil naît ici, avec la mesure qui le fonde,
-et n'est jamais abaissé ensuite.
+Le cahier n'invente aucun seuil (§5) : il ne porte que ceux que l'offre donne — « *no
+gaps* », « *complete* », la parité entière — et le 100 % de VER-08 sur nos propres fautes.
+Tout autre seuil naît ici, avec la mesure qui le fonde, et n'est jamais abaissé ensuite.
 
 | Exigence | Première mesure | Date, cible | Seuil retenu |
 |---|---|---|---|
@@ -48,6 +49,5 @@ et n'est jamais abaissé ensuite.
 
 ## 4. Ce que ce document ne contient pas
 
-Aucun relevé d'un autre dépôt, aucune estimation. Une version antérieure de ce dépôt
-comptait 91 exigences ; elle est étiquetée `docs-v0` dans l'historique, et
-`docs/cahier-des-charges.md` §15 dit ce qui en a été retiré et pourquoi.
+Aucun relevé d'un autre dépôt, aucune estimation, aucun compte d'une version antérieure :
+`docs/cahier-des-charges.md` §15 dit ce qui a été retiré du cahier et pourquoi.

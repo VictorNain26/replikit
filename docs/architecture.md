@@ -18,7 +18,8 @@ les citer. Les numéros de section sont des ancres — on ne renumérote jamais.
 Trois limites qu'aucune méthode ne franchit ; les écrire évite de promettre.
 
 **L'oracle est négatif.** Une divergence est un candidat défaut ; l'accord ne prouve rien
-(McKeeman 1998, non vérifié, §9). Le clone étant dérivé de l'observation de la cible,
+(McKeeman 1998, non vérifié, §9 — la limite tient sans lui : un oracle différentiel ne
+voit que ce qu'il sonde). Le clone étant dérivé de l'observation de la cible,
 l'oracle est aveugle exactement là où le clone est le plus faux : hors de l'observé.
 
 **L'équivalence est échantillonnée.** « Zéro écart » signifie « aucun écart sur ce qui a
@@ -185,8 +186,13 @@ Playwright (« *Added in: v1.45* », vérifié) fige `Date` dans l'agent qui rej
 L'agent de code est **Claude Code en mode sans interface** (`claude -p`, vérifié, §9) :
 ses appels de modèle sortent en OpenTelemetry — `CLAUDE_CODE_ENABLE_TELEMETRY`, métriques
 `claude_code.token.usage` et `claude_code.cost.usage` — que MLflow Tracing ingère, et son
-résultat JSON porte `total_cost_usd`. LLM-03 et LLM-04 n'ont donc pas besoin d'instrumenter
-l'agent : ils lisent ce qu'il exporte. Les outils qu'il reçoit se restreignent par
+résultat JSON porte `total_cost_usd`. Les métriques et l'événement `api_request` ne portent
+que des compteurs : modèle, coût, durée, jetons. Le journal **rejouable** de LLM-03 exige
+`OTEL_LOGS_EXPORTER=otlp` et `OTEL_LOG_RAW_API_BODIES=file:<dir>` — « *the full Anthropic
+Messages API request and response JSON* », non tronqué sur disque (vérifié, §9). Le
+*verdict* de chaque itération n'est dans aucun événement : `orchestrate/trace` le joint
+depuis `ecarts.json`. LLM-03 et LLM-04 n'instrumentent donc pas l'agent, ils lisent ce
+qu'il exporte et y joignent le verdict. Les outils qu'il reçoit se restreignent par
 invocation (`--allowedTools`, `--disallowedTools`), ce que D4 emploie.
 
 *Ce que ça coûte* : un clone en deux langages — c'est le coût de « *React background is a
@@ -199,12 +205,18 @@ un autre agent qui offre les deux le remplacerait sans toucher au reste.
 `targets/<cible>/compose.yaml` suit la Compose Specification (Apache-2.0, vérifiée), image
 épinglée par *digest* — « `image: redis@sha256:…` » y est l'exemple documenté. Le réseau du
 clone est interne (RUN-04) ; Mailpit, WireMock et mock-oauth2-server (vérifiés) sont les
-doubles des effets de bord ; les fichiers vont sur un volume local.
+doubles des effets de bord ; les fichiers vont sur un volume Compose nommé, propre à
+l'environnement.
 
 La réinitialisation est `DROP DATABASE` puis `CREATE DATABASE … TEMPLATE etat_nomme`
 (PostgreSQL 18, vérifié) : « *no other sessions can be connected to the template database
 while it is being copied* », donc l'état de départ est une base que personne n'ouvre.
 L'instantané à un instant quelconque est `pg_dump -Fc` (vérifié).
+
+**L'état complet de RUN-01 est la base et le volume de fichiers, et rien d'autre** : un
+état nommé est le couple d'une base modèle et d'une archive `tar` du volume, `run/reset`
+restaure les deux, et ACC-05 compare les deux. Le cache et les compteurs d'un environnement
+vivent dans sa base, sinon RUN-02 les mesure comme un partage.
 
 *Ce que ça coûte* : le nombre d'environnements simultanés et le coût marginal par
 environnement (RUN-02, rang N) se mesurent, ils ne se déduisent pas. Firecracker, ZFS et
@@ -253,7 +265,9 @@ compose — l'étape n'appelle rien.
 les réponses HTTP de statut inférieur à 400 ; `messages_erreur` sont celles de statut 400
 et plus, corps compris, et **elles seules** ; `etat_persistant` est `etat.json` ;
 `contenu_ecran` est `ecrans/` ; `evenements_temps_reel` est `evenements.jsonl`. Un écart
-appartient à une famille et une seule.
+appartient à une famille et une seule. Une famille absente des deux traces n'est pas
+comparée, et `judge/report` nomme les familles non comparées à côté du compte d'écarts —
+un zéro sur une famille jamais comparée n'est pas un zéro.
 
 ```
 observe/       cible          -> traces            (CAP)
@@ -272,7 +286,7 @@ targets/<t>/   le seul endroit propre à une cible
 | `observe/explore` | URL de départ → inventaire d'écrans | Crawlee `PlaywrightCrawler` (1.10.0, Apache-2.0) | extraction des éléments interactifs |
 | `observe/probe` | inventaire → sondes de formulaire et leurs réponses | scénarios Playwright générés depuis l'inventaire | générateur de sondes (§6) |
 | `observe/aa` | scénario → deux traces, relevé des champs variables | composition par `make` de `observe/record` deux fois et `judge/diff` | — |
-| `observe/redact` | trace → trace expurgée, dictionnaire de liaison | detect-secrets en garde-fou (v1.5.0, hors ligne) | expurgation liante (§6) |
+| `observe/redact` | trace → trace expurgée, dictionnaire de liaison | detect-secrets en garde-fou (v1.5.0, hors ligne) ; liste de purge, jamais liste de rétention, en-têtes et corps confondus | expurgation liante (§6) |
 | `observe/ingest` | dépôt source → schéma, migrations, OpenAPI publiés | les artefacts du dépôt cible eux-mêmes | — |
 | `infer/surface` | HAR → OpenAPI | mitmproxy2swagger 0.15.0 (HAR en entrée, OpenAPI 3.0 en sortie) | — |
 | `infer/entities` | charges utiles → JSON Schema, relations, cardinalités | genson 1.4.0 | relations et cardinalités (§6) |
@@ -283,7 +297,7 @@ targets/<t>/   le seul endroit propre à une cible
 | `build/seed` | distributions déclarées → données de départ | Faker 40.38 avec graine, version épinglée | — |
 | `build/preserve` | clone régénéré → ajustements manuels conservés | fichiers `*.custom.*` jamais régénérés, test d'empreinte | ~20 lignes |
 | `run/env` | composition → environnement | Compose Specification, images par digest | — |
-| `run/reset` | environnement, état nommé → environnement réinitialisé | `CREATE DATABASE … TEMPLATE`, `pg_dump -Fc` | — |
+| `run/reset` | environnement, état nommé → environnement réinitialisé | `CREATE DATABASE … TEMPLATE`, `pg_dump -Fc`, `tar` du volume de fichiers | ~10 lignes |
 | `run/admin` | — | routeur FastAPI sur un réseau que l'agent ne voit pas | dans le gabarit du clone |
 | `run/journal` | session → journal exportable | intergiciel FastAPI + trace Playwright de l'agent | dans le gabarit du clone |
 | `serve/mcp` | clone → serveur MCP | `FastMCP.from_fastapi()` 4.0.0 | — |
@@ -292,7 +306,7 @@ targets/<t>/   le seul endroit propre à une cible
 | `judge/replay` | scénario, environnement → trace du clone | Playwright, mêmes scripts que la capture (D2) | — |
 | `judge/policy` | `equivalence.yaml`, relevé A/A → paramètres DeepDiff | — | compilateur, ~50 lignes (§6) |
 | `judge/diff` | deux traces, paramètres → écarts par famille | DeepDiff 9.1.0 (`exclude_regex_paths`, `ignore_order`, `verbose_level=2`) | liaison D3 (§6) |
-| `judge/screen` | deux instantanés ARIA → écarts de structure et de géométrie | YAML analysé, DeepDiff en ordre | géométrie relative (§6) |
+| `judge/screen` | deux instantanés ARIA → écarts de structure et de géométrie | YAML analysé, DeepDiff en ordre ; gabarit produit depuis la cible, `/children: equal` | géométrie relative (§6) |
 | `judge/edge` | OpenAPI → cas limites et verdicts | Schemathesis 4.25.2, mode négatif et *stateful* | — |
 | `judge/adversary` | environnement, corpus → écarts hors corpus | Schemathesis *stateful* côté API ; Crawlee en marche aléatoire côté UI, sur cible et clone, comparés | stratégie de marche |
 | `judge/coverage` | traces de campagne, `scope.yaml` → couverture | opérations et routes du HAR contre le périmètre | dénominateur (§6) |
@@ -301,7 +315,7 @@ targets/<t>/   le seul endroit propre à une cible
 | `observe/agent` | tâche, cible, clone → deux trajectoires | Playwright MCP + modèle ; comparées ensuite par `judge/diff` | enregistrement des trajectoires |
 | `judge/report` | tout ce qui précède → rapport d'acceptation | — | mise en forme des dix critères |
 | `orchestrate/loop` | spécification → clone convergé, itérations | composition par `make` de `build/generate`, `judge/replay`, `judge/diff` ; espace de travail réduit de l'agent (D4) | enchaînement |
-| `orchestrate/trace` | appels de modèle → traces, coût, budget | OpenTelemetry exporté par Claude Code (`claude_code.token.usage`, `claude_code.cost.usage`), ingéré par MLflow Tracing 3.15.2 | interruption au dépassement |
+| `orchestrate/trace` | appels de modèle → traces, coût, budget | OpenTelemetry exporté par Claude Code (`claude_code.token.usage`, `claude_code.cost.usage`, corps `OTEL_LOG_RAW_API_BODIES=file:`), ingéré par MLflow Tracing 3.15.2 | jonction du verdict, interruption au dépassement |
 | `orchestrate/evalset` | écarts corrigés → jeu d'évaluation des scaffolds | — | sélection |
 
 ## 5. Couverture des 73 exigences
@@ -356,7 +370,7 @@ que l'outil fait tout.
 
 | Réf | Étape | Outil | Maison |
 |---|---|---|---|
-| RUN-01 | `run/reset` | PostgreSQL TEMPLATE, `pg_dump -Fc` | — |
+| RUN-01 | `run/reset` | PostgreSQL TEMPLATE, `pg_dump -Fc`, `tar` du volume (D8) | ~10 lignes |
 | RUN-02 | `run/env` | une composition par environnement, bases séparées | mesure du nombre et du coût |
 | RUN-03 | gabarit du clone (D7) | fournisseurs d'horloge, d'aléa, d'identifiants configurés par l'environnement ; `page.clock` | dans le gabarit |
 | RUN-04 | `run/env` | réseau Compose interne ; Mailpit, WireMock, mock-oauth2-server | — |
@@ -374,7 +388,7 @@ que l'outil fait tout.
 | API-02 | gabarit du clone | l'interface consomme l'API du clone, une seule couche | — |
 | API-03 | `serve/mcp` | FastMCP `from_fastapi` | — |
 | API-04 | gabarit du clone | RFC 9457 | — |
-| API-05 | gabarit du clone | client MCP avec délais bornés ; diagnostic par classe d'erreur | client |
+| API-05 | gabarit du clone, `serve/parity` | client MCP avec délais bornés ; diagnostic par classe d'erreur ; l'indisponibilité est produite par `docker compose stop` du service du clone pendant une tâche (vérifié, §9) | client |
 | API-06 | `serve/load` | k6 | scripts |
 
 ### Vérification (VER)
@@ -399,7 +413,7 @@ que l'outil fait tout.
 |---|---|---|---|
 | LLM-01 | `orchestrate/loop` | `make`, agent de code, `judge/diff` | enchaînement |
 | LLM-02 | frontières | jsonschema (Draft 2020-12) | — |
-| LLM-03 | `orchestrate/trace` | OpenTelemetry de Claude Code, MLflow Tracing | — |
+| LLM-03 | `orchestrate/trace` | OpenTelemetry de Claude Code, corps bruts sur disque, MLflow Tracing | jonction du verdict |
 | LLM-04 | `orchestrate/trace` | jetons lus dans la trace | interruption |
 | LLM-05 | `orchestrate/evalset` | git ; écarts corrigés comme cas | sélection |
 | LLM-06 | `make -j` | — | — |
@@ -436,7 +450,8 @@ Aucun critère n'est une étape : chacun est une sortie de `judge/report`.
   interdit ; les cassettes VCR/betamax ne voient qu'un client HTTP Python. Aucun outil ne
   lie un identifiant à sa première apparition dans un HAR. Quelques dizaines de lignes.
 - **L'expurgation liante (CAP-06).** detect-secrets trouve, il ne remplace pas de façon
-  cohérente. Le remplacement par variable réutilise le lieur.
+  cohérente : un secret remplacé par une constante casse la trace comme référence. Le
+  remplacement par variable réutilise le lieur. Liste de purge, jamais liste de rétention.
 - **Le budget et la détection anti-robot (CAP-05).** Un compteur sur `page.route` et une
   détection de 403, 429 et pages interstitielles. Aucun outil de capture n'a de budget.
 - **Le générateur de sondes de formulaire (CAP-04).** Schemathesis sonde une API, pas un
@@ -444,9 +459,19 @@ Aucun critère n'est une étape : chacun est une sortie de `judge/report`.
 - **Relations et cardinalités (INF-02).** genson infère les types, pas les liens. Heuristique
   par nom et par valeur partagée entre charges utiles.
 - **La machine à états (INF-03).** Comptage des transitions observées, YAML validé par un
-  JSON Schema du dépôt. SCXML (W3C) existe mais n'a pas été lu ; il se rediscutera si le
-  YAML ne suffit plus.
+  JSON Schema du dépôt. Cherché : SCXML, Recommandation W3C du 01/09/2015 (vérifiée, §9),
+  est un environnement d'exécution XML sans sérialisation JSON ni YAML ; INF-05 demande un
+  format éditable à la main et validé par JSON Schema. Il se rediscute si le YAML ne
+  suffit plus.
 - **Le compilateur de politique (VER-02).** YAML → paramètres DeepDiff, ~50 lignes.
+- **La canonicalisation avant comparaison.** Deux corps JSON égaux à l'ordre des clés près
+  ne doivent pas produire d'écart. DeepDiff compare des objets, pas des octets : le lieur
+  travaille sur les objets analysés, et JCS (RFC 8785, non lu, §9) n'a pas d'objet ici.
+- **OpenAPI → schéma SQL (GEN-01).** Cherché : datamodel-code-generator produit du Pydantic,
+  des dataclasses, des TypedDict ou des msgspec depuis un OpenAPI, jamais un modèle
+  SQLAlchemy (documentation lue le 01/09/2026, §9). Le passage au relationnel est écrit
+  par l'agent de `build/generate` et jugé par GEN-02 : c'est le seul maillon du lot 1 sans
+  outil.
 - **La géométrie relative (VER-09).** Les `box` de Playwright sont absolus.
 - **Les opérateurs de mutation (VER-08).** Aucun outil de mutation ne travaille sur des
   traces HAR.
@@ -492,9 +517,11 @@ Consignés plutôt que supprimés : un motif effacé se répète.
   `pg_branch` était de toute façon abandonné en octobre 2023.
 - **libfaketime** — l'interception de `getrandom()` exige une compilation `FAKE_RANDOM`
   (vérifié) ; inutile sur un clone dont on écrit les fournisseurs d'horloge et d'aléa (D7).
-- **Porcupine, Elle** — vérifient la linéarisabilité et les anomalies d'isolation ; le
-  besoin est de comparer des séquences d'événements avec tolérance d'ordre, ce que DeepDiff
-  `ignore_order` fait sur la famille *événements*.
+- **Porcupine, Elle** — vérifient la linéarisabilité et les anomalies d'isolation contre un
+  modèle séquentiel écrit à la main par cible. **Différés, pas rejetés** : la famille
+  *événements* se compare en ordre (CAP-09, GEN-06), et un ordre ne se neutralise que sur
+  relevé A/A (D3). Ils reviennent au lot 5 si la comparaison en ordre produit des écarts
+  que le relevé attribue à un entrelacement légitime et non à une faute du clone.
 - **AALpy, LearnLib, ALEX** — apprentissage actif d'automates ; les transitions d'un SaaS
   courant se lisent dans les traces, et l'apprentissage actif dépense le budget CAP-05.
 - **Classifier Two-Sample Test, SandPrint** — remplacés par la mesure directe VER-10 ; ils
@@ -508,6 +535,33 @@ Consignés plutôt que supprimés : un motif effacé se répète.
 - **Chrome DevTools Recorder** — exporte en JSON et Puppeteer, pas en Playwright sans
   extension tierce (vérifié) ; `playwright codegen` fait la même chose nativement.
 - **Diffy** — licence CC-BY-NC-ND, clause ND. L'idée du plancher de bruit reste.
+- **`route_from_har` de Playwright et `serverplayback` de mitmproxy en rejeu** — appariement
+  du chemin en égalité stricte, sans gabarit : un identifiant dans le chemin casse
+  l'appariement avant que le corps soit lu ; mitmproxy ignore en plus le WebSocket. Le
+  rejeu est un script Playwright sur le clone vivant (D2), le HAR reste le format.
+- **Hoverfly, WireMock, Prism comme substitut de cible** — un bouchon n'a pas de machine à
+  états : il rend la réponse enregistrée quoi qu'on lui poste. Retenus comme doubles
+  d'effets de bord (D8) et comme témoin (Prism).
+- **`DeepDiff.deep_distance`, `difflib.SequenceMatcher.ratio()`** comme socle d'un seuil de
+  similarité — le premier parce que sa documentation prévient que l'algorithme peut changer
+  entre versions ; le second parce que `autojunk` écarte par défaut tout élément qui vaut
+  plus de 1 % d'une séquence d'au moins 200, c'est-à-dire les rôles ARIA répétitifs. Un
+  seuil de similarité est une neutralisation sans relevé (D3).
+- **Un modèle comme juge** — P3, chiffré par TOGLL (§9).
+- **Applitools, mode `Layout`** — vise la structure et la position relative mais ignore le
+  texte, que VER-09 compare.
+- **GoReplay** — ne compare rien, licence mixte. **Daikon** — suppose l'accès au code.
+  **overlayfs** pour l'isolation — copie le fichier entier à la première écriture.
+- **`edist`** — distance d'édition d'arbre, GPL-3.0 (non vérifié, §9) ; sans objet tant que `judge/screen`
+  compare des arbres en ordre avec DeepDiff. À reprendre si un appariement de sous-arbres
+  devient nécessaire, sans écrire de Zhang-Shasha en attendant.
+- **RESTler, Morest** — ordre d'opérations inféré depuis les dépendances producteur-
+  consommateur ; Schemathesis *stateful* fait la même chose depuis les liens OpenAPI et
+  reste actif. **Microcks** — témoin alternatif à Prism, écarté pour son déploiement
+  (Java, Kubernetes) sans bénéfice sur un témoin. **syrupy** — instantanés pytest ; la spec
+  compare des fichiers écrits par les étapes, pas des valeurs de retour.
+- **Toxiproxy** — injection de latence et de coupure ; l'indisponibilité que mesure API-05
+  s'obtient en arrêtant le service (§5), et aucune exigence ne mesure la dégradation.
 - **VCR.py, betamax, pytest-recording, responses, respx** — aveugles au trafic d'un
   Chromium.
 - **Prism comme clone** — aucune persistance d'état, « *Data Persistence* » est en feuille
@@ -570,10 +624,12 @@ son statut ; une entrée ne remonte d'un cran qu'en citant l'URL et le passage.
 | [Faker](https://github.com/joke2k/faker/blob/master/README.rst) 40.38.0 (01/09/2026), MIT | « *A Seed produces the same result when the same methods with the same version of faker are called* » ; « *results are not guaranteed to be consistent across patch versions* », d'où la version épinglée |
 | [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.txt), juillet 2023 | « *Obsoletes: 7807* », *Standards Track* ; membres `type`, `title`, `status`, `detail`, `instance` |
 | [Playwright MCP](https://github.com/microsoft/playwright-mcp) 0.0.80 (01/09/2026), Apache-2.0 | « *interact with web pages through structured accessibility snapshots, bypassing the need for screenshots* » ; outils `browser_snapshot`, `browser_click` ; `npx @playwright/mcp@latest` |
-| Claude Code — [permissions](https://code.claude.com/docs/en/permissions), [sans interface](https://code.claude.com/docs/en/headless), [supervision](https://code.claude.com/docs/en/monitoring-usage), [CLI](https://code.claude.com/docs/en/cli-reference) | règles de refus : « *apply to Claude's built-in file tools and to file commands Claude Code recognizes in Bash […] They don't apply to arbitrary subprocesses* », le bac à sable pour « *OS-level enforcement* » ; `--output-format json` : « *includes `total_cost_usd` and a per-model cost breakdown* » ; `CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_METRICS_EXPORTER`, métriques `claude_code.token.usage`, `claude_code.cost.usage` ; `--allowedTools`, `--disallowedTools` par invocation |
+| Claude Code — [permissions](https://code.claude.com/docs/en/permissions), [sans interface](https://code.claude.com/docs/en/headless), [supervision](https://code.claude.com/docs/en/monitoring-usage), [CLI](https://code.claude.com/docs/en/cli-reference) | règles de refus : « *apply to Claude's built-in file tools and to file commands Claude Code recognizes in Bash […] They don't apply to arbitrary subprocesses* », le bac à sable pour « *OS-level enforcement* » ; `--output-format json` : « *includes `total_cost_usd` and a per-model cost breakdown* » ; `CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_METRICS_EXPORTER`, métriques `claude_code.token.usage`, `claude_code.cost.usage` ; `OTEL_LOGS_EXPORTER` « *Logs/events exporter types* » ; événement `api_request` : `model`, `cost_usd`, `duration_ms`, `input_tokens`, `output_tokens`, `request_id` — pas de contenu ; `OTEL_LOG_USER_PROMPTS` « *default: disabled* » ; `OTEL_LOG_RAW_API_BODIES` « *Emit the full Anthropic Messages API request and response JSON as `api_request_body` / `api_response_body` log events* », `file:<dir>` « *for untruncated bodies on disk* », inline « *truncated at the content limit (60 KB by default)* » ; `--allowedTools`, `--disallowedTools` par invocation |
 | [FastAPI](https://fastapi.tiangolo.com/tutorial/first-steps/) 0.141.1, MIT · SQLAlchemy 2.0.52, MIT · Alembic 1.19.1, MIT | `/openapi.json` : « *a JSON starting with something like: { "openapi": "3.1.0"* » |
 | [jsonschema](https://python-jsonschema.readthedocs.io/en/stable/) 4.26.0, MIT · [openapi-spec-validator](https://github.com/python-openapi/openapi-spec-validator) 0.9.0, Apache-2.0 | « *Full support for Draft 2020-12* » ; « *validates OpenAPI Specs against the OpenAPI 2.0 […] 3.0 […] 3.1 and OpenAPI 3.2* » |
 | [pytest-playwright](https://playwright.dev/python/docs/test-runners) 0.9.0, Apache-2.0 | fixtures `page`, `context`, `browser` ; `--tracing on` |
+| [SCXML](https://www.w3.org/TR/scxml/), W3C Recommendation 1 September 2015 | « *a generic state-machine based execution environment based on CCXML and Harel State Tables* » ; XML, aucune sérialisation JSON ou YAML dans le document |
+| Docker Compose CLI — [`stop`](https://docs.docker.com/reference/cli/docker/compose/stop/), [`pause`](https://docs.docker.com/reference/cli/docker/compose/pause/) | « *Stop services* », `docker compose stop [SERVICE...]` ; « *Pause services* » |
 | [Instantanés ARIA](https://playwright.dev/python/docs/aria-snapshots) | `expect(page).to_match_aria_snapshot(...)` ; `/children`: « *contain (default) […] equal […] deep-equal* » |
 
 ### Travaux vérifiés le 01/09/2026, passage à l'appui
@@ -594,5 +650,9 @@ son statut ; une entrée ne remonte d'un cran qu'en citant l'URL et le passage.
 
 ### Non vérifié — cité de seconde main
 
-McKeeman, *Differential Testing for Software*, DTJ 1998 · Just et al., FSE 2014
-(corrélation mutants-fautes réelles) · SCXML, W3C 2015 · Diffy (Twitter), plancher de bruit.
+McKeeman, *Differential Testing for Software*, DTJ 1998 — deux URL tentées le 02/09/2026,
+toutes deux hors ligne · Just et al., FSE 2014 (corrélation mutants-fautes réelles) · Diffy
+(Twitter), plancher de bruit · RFC 8785 (JCS) · `edist` · datamodel-code-generator, types
+de sortie lus dans sa documentation le 01/09/2026 sans citation conservée · GoReplay,
+Daikon, Applitools, Hoverfly, RESTler, Morest, Microcks, syrupy, Toxiproxy : écartés au §8
+sur leur documentation lue le 01/09/2026, passages non conservés.

@@ -25,17 +25,26 @@ lot1: check
 	done
 	@$(PY) -c "import json;r='$(RAPPORTS)/lot1/';e=json.load(open(r+'ecarts.json'));t=json.load(open(r+'taux.json'));i=json.load(open(r+'iterations.json'));print('écarts :',len(e['ecarts']),'| taux de détection :',t['taux'],'| itérations :',i['iterations'])"
 
+## Lots 2 à 5 : la spec du lot, puis le rapport d'acceptation que son critère de sortie exige.
+## Chaque lot lit un artefact que seule une exécution produit ; rien n'est écrit d'avance.
 lot2: lot1
 	$(PY) -m pytest tests/spec/lot2 -q
-	@echo "lot 2 : critère de sortie non outillé — voir docs/plan.md."; exit 1
+	@test -s $(RAPPORTS)/lot2/acceptation.json || { echo "lot 2 : $(RAPPORTS)/lot2/acceptation.json absent — voir docs/plan.md lot 2"; exit 1; }
+	@$(PY) -c "import json,sys;r=json.load(open('$(RAPPORTS)/lot2/acceptation.json'));t=r['taux'];print('taux de détection :',t);sys.exit(0 if t==1 else 1)"
 
 lot3: lot2
 	$(PY) -m pytest tests/spec/lot3 -q
-	@echo "lot 3 : critère de sortie non outillé — voir docs/plan.md."; exit 1
+	@for f in ecarts.json taux.json lignes_cible.json; do \
+	  test -s $(RAPPORTS)/lot3/$$f || { echo "lot 3 : $(RAPPORTS)/lot3/$$f absent — voir docs/plan.md lot 3"; exit 1; }; \
+	done
 
 lot4: lot3
 	$(PY) -m pytest tests/spec/lot4 -q
-	@echo "lot 4 : critère de sortie non outillé — voir docs/plan.md."; exit 1
+	@for f in parite.json reset.json ecarts.json taux.json iterations.json; do \
+	  test -s $(RAPPORTS)/lot4/$$f || { echo "lot 4 : $(RAPPORTS)/lot4/$$f absent — voir docs/plan.md lot 4"; exit 1; }; \
+	done
 
 lot5: lot4
-	@echo "lot 5 : critère de sortie non outillé — voir docs/plan.md."; exit 1
+	@for f in acceptation.json indiscernabilite.json environnements.json; do \
+	  test -s $(RAPPORTS)/lot5/$$f || { echo "lot 5 : $(RAPPORTS)/lot5/$$f absent — voir docs/plan.md lot 5"; exit 1; }; \
+	done
