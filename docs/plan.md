@@ -115,6 +115,20 @@ l'OpenAPI inféré porte à lui seul, sans état — et l'écart entre le témoi
 agentique est l'apport mesuré de l'agent. Si l'OpenAPI ne sert rien d'utile,
 `infer/surface` change de nature et le lot avec.
 
+*Ordre des treize étapes*, dicté par ce que la spécification gelée peut juger sans cible.
+D'abord le **squelette** : les treize répondent à `--in` et `--out` et ne font rien encore,
+ce qui rend `tests/spec/lot1/test_contrat.py` vert et donne sa forme au reste. Puis
+**l'oracle sur fixtures** — `judge/diff`, `judge/policy`, `judge/mutate` — qui n'a besoin
+ni de cible, ni de clone, ni de conteneur, et referme `test_oracle.py`. Puis **l'inférence
+sur fixtures** — `infer/surface`, `infer/entities` — qui referme `test_inference.py`. À ce
+point la spécification est verte hors ligne et le critique sain existe avant qu'un agent
+n'écrive une ligne de clone : c'est D6 pris au mot, et c'est pourquoi l'oracle ne vient pas
+après. Viennent ensuite **la capture sur cible vivante** — `observe/record`, `observe/aa` —
+puis **le clone et son environnement** — `build/generate`, `run/env`, `run/reset` — enfin
+**la boucle** — `judge/replay`, `orchestrate/loop`, `orchestrate/trace` — qui produit les
+trois chiffres. Une étape par commit, les tests qu'elle doit rendre verts nommés avant
+qu'elle soit écrite.
+
 *Charge* — décisions bloquantes : les fixtures de la spec ratifiées (`tests/spec/README.md`),
 `scope.yaml` arrêté, le *digest* de l'image relevé, le plafond de jetons fixé. Exécutions :
 deux captures A/A, puis un rejeu sur le clone par itération de réparation.

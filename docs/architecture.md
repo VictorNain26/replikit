@@ -257,9 +257,15 @@ artefacts dans `--out`, et rien d'autre. C'est P1 pris au mot, et c'est le seul 
 `tests/spec/` fige : la spec observe des fichiers, jamais des fonctions.
 
 **Le code commun vit sous `commun/`**, hors des sept paquets : le lieur de D3, l'analyse
-des instantanés ARIA, la lecture des HAR. Une étape peut l'importer ; aucune étape n'en
-importe une autre. Quand la colonne *Outil* nomme une autre étape, c'est `make` qui
-compose — l'étape n'appelle rien.
+des instantanés ARIA, la lecture des HAR. Une étape peut l'importer ; **aucune étape n'en
+importe une autre**, et c'est cette phrase que P1 vérifie par `grep`.
+
+Quand la colonne *Outil* nomme une autre étape, l'étape composante existe quand même comme
+module et répond au même contrat : elle lance les autres en **sous-processus**, jamais par
+import. `observe/aa` lance `observe/record` deux fois puis `judge/diff` ; `orchestrate/loop`
+enchaîne `build/generate`, `judge/replay` et `judge/diff` ; `serve/parity` lance
+`judge/replay` deux fois puis `judge/diff`. `make` compose la chaîne entière, il ne
+remplace pas ces trois étapes — la spécification gelée les invoque par leur module.
 
 **Les cinq familles du différentiel** (VER-01) partagent la trace ainsi : `reponses` sont
 les réponses HTTP de statut inférieur à 400 ; `messages_erreur` sont celles de statut 400

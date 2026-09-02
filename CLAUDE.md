@@ -79,6 +79,25 @@ committing:
 The agent that writes a clone runs in a reduced workspace without `judge/` (D4); if you
 are that agent, the absence is deliberate — do not look for the faults elsewhere.
 
+## How a step gets written
+
+The order inside a lot is in `docs/plan.md`, under that lot's *Ordre*. Take the next step
+in that order, alone.
+
+1. **Read the tests that already describe it.** `tests/spec/lot<n>/` holds them; each
+   docstring names the requirement and the *casse* — the change that would break it. Never
+   write a test for a step: the spec is frozen, and the requirement is already there.
+2. **Run them and read the failure.** `.venv/bin/python -m pytest tests/spec/lot1 -q -k <nom>`.
+   A step that does not exist fails with its own name, not a traceback.
+3. **Write the step.** `python -m paquet.etape --in DIR --out DIR`, nothing else. It reads
+   its artefacts and parameters from `--in`, writes to `--out`. A step that composes others
+   runs them as subprocesses; importing one is what P1 greps for.
+4. **Run them again, read the exit code**, then commit that one step.
+
+A commit carries one step. It never touches `tests/spec/` as well — the hook refuses it.
+Before merging a series, an independent review at fresh context reads the real code, not
+the report of whoever wrote it.
+
 ## Conventions
 
 - Commits: `<type>(<scope>): <description>` — `feat`, `fix`, `chore`, `refactor`, `test`,
